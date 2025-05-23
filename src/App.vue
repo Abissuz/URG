@@ -11,7 +11,7 @@ import Repro from '@/components/Repro.vue'
   <div class="content-with-header" :class="{ 'reduced-padding': $route.meta.reducedPadding }">
     <RouterView />
   </div>
-  <Repro v-if="!$route.meta.oculto" />
+  <!-- <Repro v-if="!$route.meta.oculto" /> -->
   <Foot v-if="!$route.meta.oculto" />
 </template>
 

@@ -40,26 +40,29 @@
                 <span class="title-login">Inicio de sesión</span>
               </div>
               <div class="card-body">
-                <form method="POST" action="https://www.unimar.edu.ve/portalunimar/public/login">
-                  <input
-                    type="hidden"
-                    name="_token"
-                    value="wMe6myv6l0PICNWrabvYoCcrZcGIsTI5JheNyHPK"
-                  />
-
+                <form @submit.prevent="handleSubmit">
                   <div class="mb-3 row">
                     <label for="email" class="col-md-4 col-form-label text-md-end"
                       >Correo electrónico</label
                     >
                     <div class="col-md-6">
                       <input
+                        v-model="form.email"
+                        type="email"
+                        class="form-control"
+                        name="email"
+                        autofocus
+                        required
+                      />
+
+                      <!-- <input
                         id="email"
                         type="email"
                         class="form-control"
                         name="email"
                         required
                         autofocus
-                      />
+                      /> -->
                     </div>
                   </div>
 
@@ -68,12 +71,19 @@
                       >Contraseña</label
                     >
                     <div class="col-md-6 position-relative">
-                      <input
+                      <!-- <input
                         id="password"
                         type="password"
                         class="form-control"
                         name="password"
                         minlength="5"
+                        required
+                      /> -->
+                      <input
+                        v-model="form.password"
+                        type="password"
+                        class="form-control"
+                        name="password"
                         required
                       />
                       <i class="bi bi-eye-slash" id="togglePassword"></i>
@@ -96,9 +106,7 @@
 
                   <div class="mb-3 row justify-content-center">
                     <div class="col-7 col-sm-5">
-                      <button type="submit" class="btn btn-primary w-100" id="btn-login">
-                        Iniciar sesión
-                      </button>
+                      <button type="submit" class="btn btn-primary w-100">Iniciar sesión</button>
                     </div>
                   </div>
 
@@ -123,7 +131,24 @@
 </template>
 
 <script setup>
-// No se requiere lógica adicional para este componente básico
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { auth } from '@/firebase/config'
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+const form = ref({ email: '', password: '' })
+const router = useRouter()
+
+const handleSubmit = async () => {
+  try {
+    await signInWithEmailAndPassword(auth, form.value.email, form.value.password)
+    console.log('¡Usuario autenticado!')
+    // Redirigir a dashboard (ej: router.push('/dashboard'))
+    router.push('/')
+  } catch (error) {
+    console.error('Error:', error.message)
+  }
+}
 </script>
 
 <style scoped>
