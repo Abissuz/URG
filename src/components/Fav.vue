@@ -1,5 +1,5 @@
 <template>
-  <div class="menu-container">
+  <div v-if="isAuthenticated" class="menu-container">
     <div class="menu-button" @click="toggleMenu">
       <img src="@/assets/img/gusta.png" class="menu-icon" alt="Menú" />
     </div>
@@ -71,8 +71,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
 
+//mostrar Menu si estas iniciado
+let isAuthenticated = ref(false)
+onMounted(() => {
+  let auth = getAuth()
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    isAuthenticated.value = !!user
+  })
+  onUnmounted(() => {
+    unsubscribe()
+  })
+})
 const isMenuOpen = ref(false)
 
 const toggleMenu = () => {

@@ -81,15 +81,21 @@
                       /> -->
                       <input
                         v-model="form.password"
-                        type="password"
+                        :type="showPassword ? 'text' : 'password'"
                         class="form-control"
                         name="password"
                         required
                       />
-                      <i class="bi bi-eye-slash" id="togglePassword"></i>
+                      <i
+                        @click="togglePassword"
+                        class="bi"
+                        :class="showPassword ? 'bi-eye' : 'bi-eye-slash'"
+                      ></i>
                     </div>
                   </div>
-
+                  <div v-if="errorMessage" class="alert alert-danger mt-3">
+                    {{ errorMessage }}
+                  </div>
                   <div class="mb-3 row">
                     <div class="col-md-6 offset-md-4">
                       <div class="form-check">
@@ -139,19 +145,68 @@ import { useRouter } from 'vue-router'
 const form = ref({ email: '', password: '' })
 const router = useRouter()
 
+const errorMessage = ref(null) // Añade esta línea con tus refs
+
 const handleSubmit = async () => {
+  // Resetear mensaje de error
+  errorMessage.value = null
+
+  // Validar formato de correo
+  if (!validateEmail(form.value.email)) {
+    errorMessage.value = '❌ Solo correos @unimar.edu.ve permitidos'
+    return
+  }
+
   try {
     await signInWithEmailAndPassword(auth, form.value.email, form.value.password)
-    console.log('¡Usuario autenticado!')
-    // Redirigir a dashboard (ej: router.push('/dashboard'))
     router.push('/')
   } catch (error) {
-    console.error('Error:', error.message)
+    console.error('Error de Firebase:', error.code)
+
+    switch (error.code) {
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential': // <- Nuevo caso
+        errorMessage.value = 'Contraseña incorrecta o usuario no registrado'
+        break
+      case 'auth/invalid-email':
+        errorMessage.value = 'Formato de correo inválido'
+        break
+      default:
+        errorMessage.value = `Error al iniciar sesión: ${error.message}`
+    }
   }
+}
+const showPassword = ref(false)
+const togglePassword = () => {
+  showPassword.value = !showPassword.value
+}
+const validateEmail = (email) => {
+  return String(email)
+    .toLowerCase()
+    .match(/^[a-zA-Z0-9._-]+@unimar\.edu\.ve$/)
 }
 </script>
 
 <style scoped>
+.alert {
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.alert-danger {
+  background-color: #f8d7da;
+  color: #dc3545;
+  border: 1px solid #f5c6cb;
+}
+.bi-eye,
+.bi-eye-slash {
+  position: absolute;
+  right: 25px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
 .lol {
   position: relative;
 }
@@ -220,13 +275,6 @@ const handleSubmit = async () => {
 #btn-login:hover {
   background-color: #244f7a;
   border-color: #244f7a;
-}
-
-.bi-eye-slash {
-  position: absolute;
-  right: 15px;
-  top: 35px;
-  cursor: pointer;
 }
 
 .position-relative {

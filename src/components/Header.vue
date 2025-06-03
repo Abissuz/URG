@@ -15,14 +15,6 @@
       </button>
 
       <!-- Logo Centrado -->
-      <div class="order-2 order-lg-1 mx-auto mx-lg-0 flex-grow-1 flex-lg-grow-0 text-center">
-        <router-link to="/" class="navbar-brand" style="margin: 0px">
-          <div class="circulo">
-            <img src="@/assets/img/logo-urg.png" alt="Unimar Radio" class="logo-img" />
-          </div>
-        </router-link>
-      </div>
-
       <!-- Menú Distribuido -->
       <div class="collapse navbar-collapse order-3" id="navbarContent">
         <div class="navbar-nav w-100 justify-content-between px-6">
@@ -39,12 +31,18 @@
             Catálogos
           </router-link>
           <router-link
-            to="/catalogos"
-            class="nav-link text-center letras"
-            active-class="active"
-            style="z-index: -1; width: 125px"
+            to="/"
+            class="text-center letras"
+            style="margin: 0px; position: relative; width: 140px"
           >
-            existe--
+            <div
+              class="order-2 order-lg-1 mx-auto mx-lg-0 flex-grow-1 flex-lg-grow-0 text-center"
+              style="position: absolute; top: 32px"
+            >
+              <div class="circulo">
+                <img src="@/assets/img/logo-urg.png" alt="Unimar Radio" class="logo-img" />
+              </div>
+            </div>
           </router-link>
 
           <router-link
@@ -60,20 +58,12 @@
             v-if="isAuthenticated"
             to="#"
             class="nav-link text-center letras"
-            active-class="active"
-            exact
-            @click.native.prevent="cerrarSesion"
+            @click.prevent="cerrarSesion"
           >
             Cerrar Sesión
           </router-link>
 
-          <router-link
-            v-else
-            to="/login"
-            class="nav-link text-center letras"
-            active-class="active"
-            exact
-          >
+          <router-link v-else to="/login" class="nav-link text-center letras">
             Iniciar Sesión
           </router-link>
         </div>
@@ -82,7 +72,34 @@
   </nav>
 </template>
 
-<script setup></script>
+<script setup>
+import { ref, onMounted } from 'vue'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
+import { signOut } from 'firebase/auth'
+import { useRouter } from 'vue-router'
+
+const isAuthenticated = ref(false) // Estado reactivo
+
+// Verifica si el usuario está logeado
+onMounted(() => {
+  const auth = getAuth()
+  onAuthStateChanged(auth, (user) => {
+    isAuthenticated.value = !!user // true si hay usuario, false si no
+  })
+})
+
+const router = useRouter()
+
+const cerrarSesion = async () => {
+  try {
+    const auth = getAuth()
+    await signOut(auth)
+    router.push('/') // Redirige a la página principal
+  } catch (error) {
+    console.error('Error al cerrar sesión:', error)
+  }
+}
+</script>
 
 <style scoped>
 .custom-bg {
