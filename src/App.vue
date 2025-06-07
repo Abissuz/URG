@@ -8,7 +8,13 @@ import Repro from '@/components/Repro.vue'
 <template>
   <Header v-if="!$route.meta.oculto"></Header>
   <Fav v-if="!$route.meta.oculto" />
-  <div class="content-with-header" :class="{ 'reduced-padding': $route.meta.reducedPadding }">
+  <div
+    class="content-with-header"
+    :class="{
+      'reduced-padding': $route.meta.reducedPadding,
+      'reduced-padding2': $route.meta.reducedPadding2,
+    }"
+  >
     <RouterView />
   </div>
   <Repro v-if="!$route.meta.oculto" />
@@ -24,6 +30,9 @@ import Repro from '@/components/Repro.vue'
 }
 .content-with-header.reduced-padding {
   padding-top: 0px; /* Padding reducido solo en login */
+}
+.content-with-header.reduced-padding2 {
+  padding-top: 104px; /* Padding reducido solo en login */
 }
 
 @media (max-width: 992px) {

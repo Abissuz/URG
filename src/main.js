@@ -12,6 +12,7 @@ import '@fontsource/sulphur-point/700.css'
 import '@fontsource/sofia-sans-extra-condensed/400.css'
 import '@fortawesome/fontawesome-free/css/all.css'
 const app = createApp(App)
-app.use(createPinia())
+const pinia = createPinia() // Crea la instancia de Pinia
+app.use(pinia) // Registra Pinia antes de montar la app
 app.use(router)
 app.mount('#app')

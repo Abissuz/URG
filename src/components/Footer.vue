@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Footer principal -->
-    <footer class="unimar-footer">
+    <footer class="unimar-footer" ref="footerElement">
       <div class="footer-container">
         <!-- Logo en desktop (izquierda) -->
         <div class="desktop-logo">
@@ -101,49 +101,77 @@
   </div>
 </template>
 
-<script>
-import { ref } from 'vue'
+<script setup>
+// Importaciones
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { usePlayerStore } from '@/stores/player'
 
-export default {
-  name: 'UnimarFooter',
-  setup() {
-    const columns = [
-      {
-        title: 'NUESTRA INSTITUCIÓN',
-        items: ['Rectorado', 'Vicerrectorados', 'Decanatos'],
-      },
-      {
-        title: 'OFERTAS DE ESTUDIOS',
-        items: ['Pregrado', 'Postgrado', 'Diplomados', 'Cursos y Talleres'],
-      },
-      {
-        title: 'SERVICIOS WEB',
-        items: ['Académicos', 'Biblioteca UNIMAR', 'Educación Virtual', 'Pagos Online'],
-      },
-      {
-        title: 'ACCESOS RÁPIDOS',
-        items: [
-          'Directora Académica',
-          'Calendario Académico',
-          'Contáctanos a través de',
-          'Bienestar Estudiantil',
-        ],
-      },
-    ]
-
-    const isOpen = ref(columns.map(() => false))
-
-    const toggleAccordion = (index) => {
-      isOpen.value[index] = !isOpen.value[index]
-    }
-
-    return {
-      columns,
-      isOpen,
-      toggleAccordion,
-    }
+// export default {
+//   name: 'UnimarFooter',
+//   setup() {
+const columns = ref([
+  {
+    title: 'NUESTRA INSTITUCIÓN',
+    items: ['Rectorado', 'Vicerrectorados', 'Decanatos'],
   },
+  {
+    title: 'OFERTAS DE ESTUDIOS',
+    items: ['Pregrado', 'Postgrado', 'Diplomados', 'Cursos y Talleres'],
+  },
+  {
+    title: 'SERVICIOS WEB',
+    items: ['Académicos', 'Biblioteca UNIMAR', 'Educación Virtual', 'Pagos Online'],
+  },
+  {
+    title: 'ACCESOS RÁPIDOS',
+    items: [
+      'Directora Académica',
+      'Calendario Académico',
+      'Contáctanos a través de',
+      'Bienestar Estudiantil',
+    ],
+  },
+])
+
+const isOpen = ref(columns.value.map(() => false))
+const footerElement = ref(null)
+const playerStore = usePlayerStore()
+
+// Métodos
+const toggleAccordion = (index) => {
+  isOpen.value[index] = !isOpen.value[index]
 }
+
+// Intersection Observer
+let observer
+let lastY = 0
+const scrollThreshold = 5 // Pixeles de margen de error
+
+onMounted(() => {
+  observer = new IntersectionObserver(
+    ([entry]) => {
+      const currentY = entry.boundingClientRect.y
+
+      // Solo actúa si el cambio de posición es significativo
+      if (Math.abs(currentY - lastY) > scrollThreshold) {
+        playerStore.setFooterVisibility(entry.isIntersecting)
+        lastY = currentY
+      }
+    },
+    {
+      threshold: [0, 0.5, 1], // Dispara en 0%, 50% y 100% de visibilidad
+      rootMargin: '0px 0px 0px 0px', // Margen negativo ajustado
+    },
+  )
+
+  if (footerElement.value) {
+    observer.observe(footerElement.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  observer?.disconnect()
+})
 </script>
 
 <style scoped>

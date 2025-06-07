@@ -1,7 +1,7 @@
 <template>
   <nav
     class="navbar navbar-expand-lg navbar-dark custom-bg fixed-top shadow-sm"
-    style="z-index: 1000"
+    style="z-index: 9999"
   >
     <div class="container-fluid d-flex align-items-center">
       <!-- Botón móvil -->
