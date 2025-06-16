@@ -102,13 +102,9 @@
 </template>
 
 <script setup>
-// Importaciones
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { usePlayerStore } from '@/stores/player'
+import { ref } from 'vue'
 
-// export default {
-//   name: 'UnimarFooter',
-//   setup() {
+// Datos del footer
 const columns = ref([
   {
     title: 'NUESTRA INSTITUCIÓN',
@@ -133,45 +129,12 @@ const columns = ref([
   },
 ])
 
+// Estado de los acordeones
 const isOpen = ref(columns.value.map(() => false))
-const footerElement = ref(null)
-const playerStore = usePlayerStore()
-
-// Métodos
+// Método para toggle de acordeón
 const toggleAccordion = (index) => {
   isOpen.value[index] = !isOpen.value[index]
 }
-
-// Intersection Observer
-let observer
-let lastY = 0
-const scrollThreshold = 5 // Pixeles de margen de error
-
-onMounted(() => {
-  observer = new IntersectionObserver(
-    ([entry]) => {
-      const currentY = entry.boundingClientRect.y
-
-      // Solo actúa si el cambio de posición es significativo
-      if (Math.abs(currentY - lastY) > scrollThreshold) {
-        playerStore.setFooterVisibility(entry.isIntersecting)
-        lastY = currentY
-      }
-    },
-    {
-      threshold: [0, 0.5, 1], // Dispara en 0%, 50% y 100% de visibilidad
-      rootMargin: '0px 0px 0px 0px', // Margen negativo ajustado
-    },
-  )
-
-  if (footerElement.value) {
-    observer.observe(footerElement.value)
-  }
-})
-
-onBeforeUnmount(() => {
-  observer?.disconnect()
-})
 </script>
 
 <style scoped>
@@ -211,7 +174,6 @@ onBeforeUnmount(() => {
 
 /* Footer principal */
 .unimar-footer {
-  margin-top: 60px;
   background-color: #0d4d98;
   color: white;
   padding: 2rem 0;
@@ -275,6 +237,7 @@ onBeforeUnmount(() => {
   color: #ff971c;
   font-size: 1.1rem;
   margin-bottom: 1rem;
+  font-weight: 600;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid #ff7700;
   text-transform: uppercase;

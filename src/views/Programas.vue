@@ -1,0 +1,346 @@
+<template>
+  <div class="container-fluid py-4">
+    <h1 class="text-center mb-4 text-primary">Programas</h1>
+
+    <!-- Interruptor de Contenido (Toggle Switch) -->
+    <div class="view-toggle-container">
+      <div class="toggle-switch">
+        <button @click="setActiveView('videos')" :class="{ active: activeView === 'videos' }">
+          Videos
+        </button>
+        <button @click="setActiveView('podcasts')" :class="{ active: activeView === 'podcasts' }">
+          Podcasts
+        </button>
+        <div class="glider" :class="{ 'on-podcasts': activeView === 'podcasts' }"></div>
+      </div>
+    </div>
+
+    <!-- Barra de búsqueda -->
+    <div class="mb-4 position-relative busca">
+      <input
+        v-model="searchQuery"
+        id="buscar"
+        type="text"
+        class="form-control form-control-lg"
+        :placeholder="`Buscar en ${activeView}...`"
+      />
+      <img src="@/assets/img/lupa.png" class="lupa" alt="Buscar" />
+    </div>
+
+    <!-- Vista de Videos -->
+    <div v-if="activeView === 'videos'">
+      <div v-if="videoLoading" class="text-center py-5">
+        <div class="spinner-border text-warning" role="status"></div>
+        <p class="mt-2">Cargando videos...</p>
+      </div>
+      <div v-else-if="videoError" class="alert alert-danger text-center">
+        <p class="mb-0">⚠️ {{ videoError }}</p>
+        <button @click="fetchAllVideos" class="btn btn-primary mt-2">Reintentar</button>
+      </div>
+      <div v-else class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        <div v-for="video in paginatedVideos" :key="video.id" class="col">
+          <a
+            :href="
+              '[https://www.youtube.com/watch?v=](https://www.youtube.com/watch?v=)' + video.id
+            "
+            target="_blank"
+            class="text-decoration-none"
+          >
+            <div class="card h-100 shadow-sm video-card">
+              <img :src="video.thumbnail" class="card-img-top" :alt="video.title" />
+              <div class="card-body">
+                <h5 class="card-title text-primary">{{ video.title }}</h5>
+              </div>
+              <div class="card-footer bg-transparent border-top-0">
+                <small class="text-muted">Publicado: {{ formatDate(video.publishedAt) }}</small>
+              </div>
+            </div>
+          </a>
+        </div>
+      </div>
+      <nav v-if="videoTotalPages > 1 && !videoLoading" aria-label="Page navigation">
+        <ul class="pagination justify-content-center mt-4">
+          <li class="page-item" :class="{ disabled: videoCurrentPage === 1 }">
+            <a class="page-link" href="#" @click.prevent="goToVideoPage(videoCurrentPage - 1)"
+              >Anterior</a
+            >
+          </li>
+          <li
+            v-for="page in videoPages"
+            :key="page"
+            class="page-item"
+            :class="{ active: page === videoCurrentPage, disabled: page === '...' }"
+          >
+            <span v-if="page === '...'" class="page-link">...</span>
+            <a v-else class="page-link" href="#" @click.prevent="goToVideoPage(page)">{{ page }}</a>
+          </li>
+          <li class="page-item" :class="{ disabled: videoCurrentPage === videoTotalPages }">
+            <a class="page-link" href="#" @click.prevent="goToVideoPage(videoCurrentPage + 1)"
+              >Siguiente</a
+            >
+          </li>
+        </ul>
+      </nav>
+    </div>
+
+    <!-- Vista de Podcasts -->
+    <div v-else-if="activeView === 'podcasts'">
+      <PodcastGrid :search-query="searchQuery" />
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue'
+import { usePodcastStore } from '@/stores/counter'
+import PodcastGrid from '@/components/PodcastGrid.vue'
+
+// --- ESTADO GENERAL DE LA VISTA ---
+const activeView = ref('videos') // 'videos' o 'podcasts'
+const searchQuery = ref('')
+
+const setActiveView = (view) => {
+  activeView.value = view
+  searchQuery.value = '' // Limpia la búsqueda al cambiar de vista
+}
+
+// --- LÓGICA PARA VIDEOS DE YOUTUBE ---
+const API_KEY = import.meta.env.VITE_APP_YOUTUBE_API_KEY
+const CHANNEL_ID = import.meta.env.VITE_APP_YOUTUBE_CHANNEL_ID
+const UPLOADS_PLAYLIST_ID = CHANNEL_ID ? `UU${CHANNEL_ID.substring(2)}` : null
+const VIDEOS_PER_PAGE = 9
+
+const allVideos = ref([])
+const videoLoading = ref(true)
+const videoError = ref(null)
+const videoCurrentPage = ref(1)
+
+const filteredVideos = computed(() => {
+  if (!searchQuery.value.trim()) return allVideos.value
+  const query = searchQuery.value.toLowerCase()
+  if (videoCurrentPage.value !== 1) videoCurrentPage.value = 1
+  return allVideos.value.filter((video) => video.title.toLowerCase().includes(query))
+})
+
+const videoTotalPages = computed(() => Math.ceil(filteredVideos.value.length / VIDEOS_PER_PAGE))
+const paginatedVideos = computed(() => {
+  const start = (videoCurrentPage.value - 1) * VIDEOS_PER_PAGE
+  const end = start + VIDEOS_PER_PAGE
+  return filteredVideos.value.slice(start, end)
+})
+const videoPages = computed(() => {
+  // Lógica para mostrar [...] en paginación
+  const pages = []
+  if (videoTotalPages.value <= 7) {
+    for (let i = 1; i <= videoTotalPages.value; i++) pages.push(i)
+  } else {
+    if (videoCurrentPage.value < 5) return [1, 2, 3, 4, 5, '...', videoTotalPages.value]
+    if (videoCurrentPage.value > videoTotalPages.value - 4)
+      return [
+        1,
+        '...',
+        videoTotalPages.value - 4,
+        videoTotalPages.value - 3,
+        videoTotalPages.value - 2,
+        videoTotalPages.value - 1,
+        videoTotalPages.value,
+      ]
+    return [
+      1,
+      '...',
+      videoCurrentPage.value - 1,
+      videoCurrentPage.value,
+      videoCurrentPage.value + 1,
+      '...',
+      videoTotalPages.value,
+    ]
+  }
+  return pages
+})
+
+const formatDate = (dateString) =>
+  new Date(dateString).toLocaleDateString('es-ES', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
+const fetchAllVideos = async () => {
+  videoLoading.value = true
+  videoError.value = null
+  let nextPageToken = null
+  const fetchedVideos = []
+  try {
+    if (!UPLOADS_PLAYLIST_ID) throw new Error('ID de canal de YouTube no configurado.')
+    do {
+      let url = `https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${UPLOADS_PLAYLIST_ID}&key=${API_KEY}`
+      if (nextPageToken) url += `&pageToken=${nextPageToken}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Error HTTP: ${res.status}`)
+      const data = await res.json()
+      const newVideos = data.items
+        .filter((item) => item.snippet.title !== 'Private video' && item.snippet.thumbnails)
+        .map((item) => ({
+          id: item.contentDetails.videoId,
+          title: item.snippet.title,
+          publishedAt: item.snippet.publishedAt,
+          thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url,
+        }))
+      fetchedVideos.push(...newVideos)
+      nextPageToken = data.nextPageToken
+    } while (nextPageToken)
+    allVideos.value = fetchedVideos
+  } catch (err) {
+    videoError.value = 'No se pudieron cargar los videos.'
+  } finally {
+    videoLoading.value = false
+  }
+}
+const goToVideoPage = (page) => {
+  if (page >= 1 && page <= videoTotalPages.value) videoCurrentPage.value = page
+}
+
+// --- LÓGICA PARA PODCASTS DE FIRESTORE ---
+const podcastStore = usePodcastStore()
+
+// --- INICIALIZACIÓN ---
+onMounted(() => {
+  fetchAllVideos()
+  podcastStore.fetchPodcasts()
+})
+</script>
+
+<style scoped>
+/* --- ESTILOS DEL INTERRUPTOR (TOGGLE) --- */
+.view-toggle-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+.toggle-switch {
+  position: relative;
+  display: flex;
+  background-color: rgba(13, 77, 152, 0.3);
+  border-radius: 50px;
+  padding: 5px;
+  border: 1px solid #0d4d98;
+}
+.toggle-switch button {
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 8px 24px;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  transition: color 0.3s ease;
+}
+.toggle-switch button.active {
+  color: #0d4d98;
+}
+.glider {
+  position: absolute;
+  top: 5px;
+  height: calc(100% - 10px);
+  width: 50%;
+  background-color: white;
+  border-radius: 50px;
+  z-index: 1;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.toggle-switch .glider.on-podcasts {
+  transform: translateX(100%);
+}
+
+/* El resto de tus estilos se mantienen */
+.container-fluid {
+  font-family: 'Sulphur Point', sans-serif;
+}
+.busca {
+  max-width: 500px;
+  width: 35%;
+  min-width: 300px;
+  margin: 0 auto 2rem;
+}
+.lupa {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) invert(1);
+  cursor: pointer;
+}
+.form-control {
+  border-radius: 50px;
+  padding: 10px 20px;
+  border: 1px solid #0d4d98;
+  background-color: rgba(13, 77, 152, 0.68);
+  color: white;
+  text-align: center;
+}
+.form-control:focus {
+  border: 1px solid #0d4d98;
+  background-color: rgba(13, 77, 152, 0.68);
+  box-shadow: none;
+  color: white;
+}
+.video-card {
+  background-color: #212529;
+  border: 1px solid #343a40;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+  cursor: pointer;
+}
+.video-card:hover {
+  transform: translateY(-5px) scale(1.03);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+.card-img-top {
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+.card-title {
+  color: #f8f9fa;
+}
+.card-title:hover {
+  color: #ff8a00 !important;
+}
+.text-primary {
+  color: #0d4d98 !important;
+}
+.btn-primary {
+  background-color: #0d4d98;
+  border-color: #0d4d98;
+}
+.btn-primary:hover {
+  background-color: #0b3d7a;
+  border-color: #0b3d7a;
+}
+.pagination .page-link {
+  background-color: #212529;
+  border-color: #343a40;
+  color: #0d4d98;
+}
+.pagination .page-link:hover {
+  background-color: #343a40;
+  color: #0d4d98;
+}
+.pagination .page-item.active .page-link {
+  background-color: #0d4d98;
+  border-color: #0d4d98;
+  color: white;
+}
+.pagination .page-item.disabled .page-link {
+  background-color: #212529;
+  border-color: #343a40;
+  color: #6c757d;
+  pointer-events: none;
+}
+.page-link:focus {
+  box-shadow: none;
+}
+</style>

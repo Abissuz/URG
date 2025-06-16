@@ -91,6 +91,81 @@
         </div>
       </section>
     </div>
+    <div class="container my-5">
+      <div class="row justify-content-center">
+        <!-- Miembro 1 -->
+        <div class="col-md-3 col-sm-6 mb-4">
+          <div class="card border-0 text-center h-100">
+            <div class="card-img-top mx-auto mt-3" style="width: 150px; height: 150px">
+              <img
+                src="@/assets/img/MA.jpg"
+                alt="Miembro 1"
+                class="img-fluid rounded-circle"
+                style="object-fit: cover; width: 100%; height: 100%"
+              />
+            </div>
+            <div class="card-body">
+              <h5 class="card-title fw-bold">Director General</h5>
+              <p class="card-text">Manuel Aceituno</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Miembro 2 -->
+        <div class="col-md-3 col-sm-6 mb-4">
+          <div class="card border-0 text-center h-100">
+            <div class="card-img-top mx-auto mt-3" style="width: 150px; height: 150px">
+              <img
+                src="@/assets/img/GB.jpg"
+                alt="Miembro 2"
+                class="img-fluid rounded-circle"
+                style="object-fit: cover; width: 100%; height: 100%"
+              />
+            </div>
+            <div class="card-body">
+              <h5 class="card-title fw-bold">Subdirector</h5>
+              <p class="card-text">Giancarlo Bedetti</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Miembro 3 -->
+        <div class="col-md-3 col-sm-6 mb-4">
+          <div class="card border-0 text-center h-100">
+            <div class="card-img-top mx-auto mt-3" style="width: 150px; height: 150px">
+              <img
+                src="@/assets/img/JC.jpg"
+                alt="Miembro 3"
+                class="img-fluid rounded-circle"
+                style="object-fit: cover; width: 100%; height: 100%"
+              />
+            </div>
+            <div class="card-body">
+              <h5 class="card-title fw-bold">Gerente de Producción</h5>
+              <p class="card-text">Juancarlos Rodriguez</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Miembro 4 -->
+        <div class="col-md-3 col-sm-6 mb-4">
+          <div class="card border-0 text-center h-100">
+            <div class="card-img-top mx-auto mt-3" style="width: 150px; height: 150px">
+              <img
+                src="@/assets/img/AH.jpg"
+                alt="Miembro 4"
+                class="img-fluid rounded-circle"
+                style="object-fit: cover; width: 100%; height: 100%"
+              />
+            </div>
+            <div class="card-body">
+              <h5 class="card-title fw-bold">Operador</h5>
+              <p class="card-text">Alejandro Hernández</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -120,5 +195,16 @@
 
 .bg-light {
   background-color: #f8f9fa !important;
+}
+.card {
+  transition: transform 0.3s ease;
+  background-color: #f8f9fa;
+}
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+.card-title {
+  color: #0d4d98; /* Color UNIMAR */
 }
 </style>
