@@ -49,6 +49,17 @@
                 <span>Nosotros</span>
               </router-link>
             </li>
+            <li>
+              <router-link to="/favoritos" class="nav-item" active-class="active">
+                <svg viewBox="0 0 24 24" class="nav-icon">
+                  <path
+                    fill="currentColor"
+                    d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                  ></path>
+                </svg>
+                <span>Favoritos</span>
+              </router-link>
+            </li>
           </ul>
         </nav>
       </div>
@@ -72,9 +83,7 @@
                 <svg v-if="playerStore.isPlaying" viewBox="0 0 24 24" fill="white">
                   <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path>
                 </svg>
-                <svg v-else viewBox="0 0 24 24" fill="white">
-                  <path d="M8 5v14l11-7z"></path>
-                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"></path></svg>
               </button>
               <div class="desktop-track-info">
                 <div class="marquee-wrapper">
@@ -82,6 +91,13 @@
                 </div>
                 <span class="track-artist-desktop">{{ playerStore.currentTrack.artist }}</span>
               </div>
+              <button
+                v-if="!playerStore.isLiveStreaming"
+                @click="playerStore.switchToLiveStream()"
+                class="live-btn"
+              >
+                Volver al Vivo
+              </button>
             </div>
           </div>
 
@@ -128,8 +144,9 @@
               ><img src="@/assets/img/login-mobile.png" alt=""
             /></router-link>
             <div v-else class="user-menu" ref="userMenuRef">
-              <button @click.stop="toggleDropdown" class="user-avatar-btn">
-                {{ userInitial }}
+              <button @click.stop="toggleDropdown" class="user-profile-btn">
+                <span class="user-name">{{ userName }}</span>
+                <div class="user-avatar">{{ userInitial }}</div>
               </button>
               <transition name="dropdown-fade">
                 <div v-if="showDropdown" class="dropdown-menu">
@@ -161,6 +178,7 @@
     <BottomPlayer />
   </div>
 </template>
+
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
@@ -189,7 +207,6 @@ const userInitial = computed(() => (userName.value ? userName.value.charAt(0).to
 const toggleMobileMenu = () => {
   isMobileMenuOpen.value = !isMobileMenuOpen.value
 }
-
 const toggleDropdown = () => {
   showDropdown.value = !showDropdown.value
 }
@@ -232,6 +249,7 @@ onUnmounted(() => {
 </script>
 
 <style>
+/* ... Tus estilos existentes ... */
 html,
 body,
 #app {
@@ -388,8 +406,6 @@ body,
 .login-btn:hover {
   transform: scale(1.05);
 }
-
-/* --- ESTILOS MEJORADOS PARA EL MENÚ DE USUARIO --- */
 .user-menu {
   position: relative;
 }
@@ -412,7 +428,7 @@ body,
   font-weight: 500;
   font-size: 0.9rem;
 }
-.user-avatar-btn {
+.user-avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -426,14 +442,15 @@ body,
 .dropdown-menu {
   position: absolute;
   right: 0;
-  top: 100%;
+  top: 120%;
   margin-top: 0.5rem;
   background: #282828;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   min-width: 200px;
-  z-index: 1000;
+  z-index: 1051;
   overflow: hidden;
+  border: 1px solid #404040;
   display: block !important;
 }
 .dropdown-item {
@@ -452,7 +469,25 @@ body,
   height: 18px;
   margin-right: 0.75rem;
 }
-
+.dropdown-header {
+  padding: 0.5rem 1rem;
+  color: #b3b3b3;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #404040;
+  margin-bottom: 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active {
+  transition: all 0.2s ease;
+}
+.dropdown-fade-enter-from,
+.dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
 .desktop-track-info {
   display: flex;
   flex-direction: column;
@@ -483,12 +518,8 @@ body,
     transform: translateX(-100%);
   }
 }
-.mobile-menu-toggle {
-  display: none;
-}
-.sidebar-close-btn {
-  display: none;
-}
+.mobile-menu-toggle,
+.sidebar-close-btn,
 .mobile-overlay {
   display: none;
 }
@@ -511,7 +542,6 @@ body,
   .sidebar.is-mobile-open {
     transform: translateX(0);
   }
-
   .sidebar-close-btn {
     display: block;
     position: absolute;
@@ -522,7 +552,6 @@ body,
     color: #fff;
     cursor: pointer;
   }
-
   .mobile-overlay {
     display: none;
     position: fixed;
@@ -536,7 +565,6 @@ body,
   .sidebar.is-mobile-open ~ .mobile-overlay {
     display: block;
   }
-
   .mobile-menu-toggle {
     display: block;
     background: none;
@@ -547,7 +575,6 @@ body,
     width: 30px;
     height: 30px;
   }
-
   .header-grid {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -581,7 +608,7 @@ body,
   }
   .user-name {
     display: none;
-  } /* Oculta el nombre en móvil */
+  }
 }
 @media screen and (max-width: 700px) {
   .sidebar.is-mobile-open {
@@ -591,15 +618,19 @@ body,
     display: flex;
   }
 }
-/* ... Tus estilos existentes ... */
-.desktop-player-controls,
-.volume-control {
-  display: flex;
+.live-btn {
+  background-color: #ff8a00;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: 1rem;
+  transition: background-color 0.2s ease;
 }
-@media (max-width: 992px) {
-  .desktop-player-controls,
-  .volume-control {
-    display: none;
-  }
+.live-btn:hover {
+  background-color: #e67a00;
 }
 </style>

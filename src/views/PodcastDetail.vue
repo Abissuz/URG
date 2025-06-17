@@ -25,9 +25,24 @@
             class="list-group-item d-flex justify-content-between align-items-center"
           >
             <span>{{ episode.title }}</span>
-            <button @click="playEpisode(episode)" class="btn btn-sm btn-outline-primary">
-              <i class="fas fa-play me-2"></i>Reproducir
-            </button>
+            <div class="d-flex align-items-center gap-3">
+              <!-- Botón de Favorito para Episodio (Llamada corregida) -->
+              <button
+                @click.stop="favoritesStore.toggleEpisodeFavorite(podcastId, episode)"
+                class="btn-favorite"
+              >
+                <i
+                  :class="[
+                    'fas',
+                    'fa-heart',
+                    { 'is-favorite': favoritesStore.isEpisodeFavorite(episode.id) },
+                  ]"
+                ></i>
+              </button>
+              <button @click="playEpisode(episode)" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-play me-2"></i>Reproducir
+              </button>
+            </div>
           </li>
         </ul>
       </div>
@@ -39,34 +54,28 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { doc, getDoc, collection, getDocs, orderBy, query } from 'firebase/firestore'
+import { collection, getDocs, orderBy, query } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { usePlayerStore } from '@/stores/player'
 import { usePodcastStore } from '@/stores/counter'
+import { useFavoritesStore } from '@/stores/favorites'
 
 const route = useRoute()
 const playerStore = usePlayerStore()
 const podcastStore = usePodcastStore()
+const favoritesStore = useFavoritesStore()
 
 const episodes = ref([])
 const loading = ref(true)
 const podcastId = route.params.id
 
-const podcast = computed(() => {
-  return podcastStore.podcasts.find((p) => p.id === podcastId)
-})
-
-// ¡FUNCIÓN CORREGIDA!
-const playEpisode = (episode) => {
-  playerStore.playOnDemandTrack(episode)
-}
+const podcast = computed(() => podcastStore.podcasts.find((p) => p.id === podcastId))
+const playEpisode = (episode) => playerStore.playOnDemandTrack(episode)
 
 onMounted(async () => {
-  // Asegurarse de que los podcasts estén cargados antes de continuar
   if (podcastStore.podcasts.length === 0) {
     await podcastStore.fetchPodcasts()
   }
-
   try {
     const episodesCol = collection(db, 'podcasts', podcastId, 'episodes')
     const q = query(episodesCol, orderBy('publishDate', 'desc'))
@@ -81,9 +90,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.podcast-detail-container {
-  color: #333;
-}
 .img-fluid {
   max-height: 350px;
   border-radius: 1rem !important;
@@ -102,5 +108,34 @@ onMounted(async () => {
 .btn-outline-primary:hover {
   background-color: #0d4d98;
   color: white;
+}
+.btn-favorite {
+  background: none;
+  border: none;
+  color: #adb5bd;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    color 0.2s,
+    transform 0.2s;
+}
+.btn-favorite:hover {
+  color: #ff4d6d;
+}
+.btn-favorite .is-favorite {
+  color: #ff4d6d;
+  animation: bounce 0.3s ease;
+}
+@keyframes bounce {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 </style>

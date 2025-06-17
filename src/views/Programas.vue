@@ -39,11 +39,11 @@
       </div>
       <div v-else class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         <div v-for="video in paginatedVideos" :key="video.id" class="col">
+          <!-- INICIO DE LA CORRECCIÓN: Se asegura que el :href es una URL limpia -->
           <a
-            :href="
-              '[https://www.youtube.com/watch?v=](https://www.youtube.com/watch?v=)' + video.id
-            "
+            :href="`https://www.youtube.com/watch?v=${video.id}`"
             target="_blank"
+            rel="noopener noreferrer"
             class="text-decoration-none"
           >
             <div class="card h-100 shadow-sm video-card">
@@ -56,6 +56,7 @@
               </div>
             </div>
           </a>
+          <!-- FIN DE LA CORRECCIÓN -->
         </div>
       </div>
       <nav v-if="videoTotalPages > 1 && !videoLoading" aria-label="Page navigation">
@@ -96,12 +97,12 @@ import { usePodcastStore } from '@/stores/counter'
 import PodcastGrid from '@/components/PodcastGrid.vue'
 
 // --- ESTADO GENERAL DE LA VISTA ---
-const activeView = ref('videos') // 'videos' o 'podcasts'
+const activeView = ref('videos')
 const searchQuery = ref('')
 
 const setActiveView = (view) => {
   activeView.value = view
-  searchQuery.value = '' // Limpia la búsqueda al cambiar de vista
+  searchQuery.value = ''
 }
 
 // --- LÓGICA PARA VIDEOS DE YOUTUBE ---
@@ -129,7 +130,6 @@ const paginatedVideos = computed(() => {
   return filteredVideos.value.slice(start, end)
 })
 const videoPages = computed(() => {
-  // Lógica para mostrar [...] en paginación
   const pages = []
   if (videoTotalPages.value <= 7) {
     for (let i = 1; i <= videoTotalPages.value; i++) pages.push(i)
@@ -250,10 +250,10 @@ onMounted(() => {
   transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 .toggle-switch .glider.on-podcasts {
-  transform: translateX(100%);
+  transform: translateX(90%);
 }
 
-/* El resto de tus estilos se mantienen */
+/* El resto de tus estilos */
 .container-fluid {
   font-family: 'Sulphur Point', sans-serif;
 }
@@ -288,8 +288,7 @@ onMounted(() => {
   color: white;
 }
 .video-card {
-  background-color: #212529;
-  border: 1px solid #343a40;
+  border: 1px solid #343a4063;
   transition:
     transform 0.3s ease,
     box-shadow 0.3s ease;
@@ -321,12 +320,11 @@ onMounted(() => {
   border-color: #0b3d7a;
 }
 .pagination .page-link {
-  background-color: #212529;
-  border-color: #343a40;
+  border-color: #343a4060;
   color: #0d4d98;
 }
 .pagination .page-link:hover {
-  background-color: #343a40;
+  background-color: #60b0ff66;
   color: #0d4d98;
 }
 .pagination .page-item.active .page-link {
@@ -335,8 +333,7 @@ onMounted(() => {
   color: white;
 }
 .pagination .page-item.disabled .page-link {
-  background-color: #212529;
-  border-color: #343a40;
+  border-color: #343a4060;
   color: #6c757d;
   pointer-events: none;
 }

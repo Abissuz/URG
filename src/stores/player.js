@@ -9,10 +9,11 @@ export const usePlayerStore = defineStore('player', () => {
   const volume = ref(0.5)
   const currentTrack = ref({ title: 'Programación en vivo', artist: 'UNIMAR RADIO' })
   const songDuration = ref(0)
-  const isLiveStreaming = ref(true) // Nuevo: para saber si es en vivo o un podcast
+  const isLiveStreaming = ref(true)
 
   let eventSource = null
   let songTimer = null
+
   const liveStreamUrl = 'https://stream.zeno.fm/xmah2zunhgmtv'
   const metadataUrl = 'https://api.zeno.fm/mounts/metadata/subscribe/xmah2zunhgmtv'
 
@@ -28,9 +29,9 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
-  // ¡NUEVA FUNCIÓN! Esto es lo que faltaba.
   const playOnDemandTrack = (episode) => {
-    isLiveStreaming.value = false // Cambiamos a modo "on-demand"
+    if (audioElement.value) audioElement.value.pause()
+    isLiveStreaming.value = false
     currentTrack.value = { title: episode.title, artist: 'Podcast' }
     audioElement.value.src = episode.audioURL
     audioElement.value.play().catch(console.error)
@@ -38,11 +39,14 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   const switchToLiveStream = () => {
-    isLiveStreaming.value = true // Volvemos a modo "en vivo"
-    currentTrack.value = { title: 'Programación en vivo', artist: 'UNIMAR RADIO' }
+    if (audioElement.value) audioElement.value.pause()
+    isLiveStreaming.value = true
+    currentTrack.value = { title: 'Cargando en vivo...', artist: 'UNIMAR RADIO' } // Título temporal
     audioElement.value.src = `${liveStreamUrl}?t=${Date.now()}`
     audioElement.value.play().catch(console.error)
     startSongTimer()
+    // LA SOLUCIÓN: Forzamos la reconexión para obtener los metadatos al instante.
+    connectSSE()
   }
 
   const togglePlay = () => {
@@ -83,16 +87,17 @@ export const usePlayerStore = defineStore('player', () => {
     clearInterval(songTimer)
     songDuration.value = 0
     songTimer = setInterval(() => {
-      songDuration.value++
+      if (!audioElement.value?.paused) {
+        songDuration.value++
+      }
     }, 1000)
   }
 
   const connectSSE = () => {
-    if (eventSource) eventSource.close()
+    if (eventSource) eventSource.close() // Cierra cualquier conexión anterior
     eventSource = new EventSource(metadataUrl)
     eventSource.onmessage = (event) => {
       if (isLiveStreaming.value) {
-        // Solo actualiza si estamos en modo vivo
         try {
           const newTrack = parseMetadata(JSON.parse(event.data).streamTitle)
           if (newTrack && newTrack.title !== currentTrack.value.title) {
@@ -119,6 +124,7 @@ export const usePlayerStore = defineStore('player', () => {
     volume,
     currentTrack,
     songDuration,
+    isLiveStreaming,
     togglePlay,
     setVolume,
     toggleMute,

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted } from 'vue' // Se añade onMounted
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 
@@ -8,6 +8,7 @@ export const usePodcastStore = defineStore('podcasts', () => {
   const loading = ref(true) // Cambiado a true para mostrar el spinner inicial
 
   const fetchPodcasts = async () => {
+    // Evita volver a cargar si ya tenemos los datos
     if (podcasts.value.length > 0) return
     loading.value = true
     try {
@@ -23,7 +24,7 @@ export const usePodcastStore = defineStore('podcasts', () => {
     }
   }
 
-  // Llama a la función para obtener los datos cuando el store se usa por primera vez.
+  // ¡LA CLAVE! Llama a la función para obtener los datos cuando el store se usa por primera vez.
   onMounted(() => {
     fetchPodcasts()
   })
