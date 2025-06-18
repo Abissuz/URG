@@ -18,11 +18,14 @@
 
       <div class="mt-5">
         <h3 class="mb-4">Episodios</h3>
+        <p class="text-muted">Haz clic en un episodio para ver o dejar comentarios.</p>
         <ul class="list-group">
           <li
             v-for="episode in episodes"
             :key="episode.id"
-            class="list-group-item d-flex justify-content-between align-items-center"
+            class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+            :class="{ 'active-episode': selectedEpisodeForComments?.id === episode.id }"
+            @click="selectEpisodeForComments(episode)"
           >
             <span>{{ episode.title }}</span>
             <div class="d-flex align-items-center gap-3">
@@ -45,67 +48,294 @@
           </li>
         </ul>
       </div>
+
+      <!-- Sección de Comentarios -->
+      <div v-if="selectedEpisodeForComments" class="comments-section-wrapper mt-5">
+        <div
+          v-if="!selectedEpisodeForComments.commentsEnabled"
+          class="alert alert-info text-center"
+        >
+          Los comentarios están desactivados para este episodio.
+        </div>
+        <div v-else>
+          <h3 class="mb-4">
+            Comentarios para:
+            <span class="text-primary">{{ selectedEpisodeForComments.title }}</span>
+          </h3>
+
+          <!-- Formulario para nuevo comentario -->
+          <div v-if="authStore.isLoggedIn" class="card mb-4">
+            <div class="card-body">
+              <form @submit.prevent="postComment">
+                <textarea
+                  v-model="newCommentText"
+                  class="form-control"
+                  rows="3"
+                  placeholder="Escribe tu comentario..."
+                  required
+                ></textarea>
+                <button type="submit" class="btn btn-primary mt-2" :disabled="isPostingComment">
+                  {{ isPostingComment ? 'Publicando...' : 'Publicar Comentario' }}
+                </button>
+              </form>
+            </div>
+          </div>
+          <div v-else class="alert alert-light text-center">
+            <router-link to="/login">Inicia sesión</router-link> para dejar un comentario.
+          </div>
+
+          <!-- [NUEVO] Barra de acciones de moderación -->
+          <div
+            v-if="authStore.canUpdateContent && comments.length > 0"
+            class="moderation-bar card card-body bg-light mb-3"
+          >
+            <div class="d-flex justify-content-between align-items-center">
+              <span>Modo de moderación activado</span>
+              <button
+                @click="deleteSelectedComments"
+                :disabled="selectedComments.size === 0"
+                class="btn btn-sm btn-danger"
+              >
+                Eliminar seleccionados ({{ selectedComments.size }})
+              </button>
+            </div>
+          </div>
+
+          <!-- Lista de Comentarios -->
+          <div v-if="commentsLoading" class="text-center">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+          </div>
+          <div v-else-if="comments.length === 0" class="text-center text-muted">
+            Sé el primero en comentar.
+          </div>
+          <ul v-else class="list-unstyled">
+            <li
+              v-for="comment in comments"
+              :key="comment.id"
+              class="comment-item card card-body mb-3"
+            >
+              <div class="d-flex align-items-start">
+                <!-- [NUEVO] Checkbox de moderación -->
+                <input
+                  v-if="authStore.canUpdateContent"
+                  type="checkbox"
+                  class="form-check-input me-3"
+                  :checked="selectedComments.has(comment.id)"
+                  @change="toggleCommentSelection(comment.id)"
+                />
+                <div class="flex-grow-1">
+                  <p class="mb-1">{{ comment.text }}</p>
+                  <small class="text-muted">
+                    <strong>{{ comment.authorName }}</strong> -
+                    {{ formatDate(comment.createdAt?.toDate()) }}
+                  </small>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
     </div>
     <div v-else class="alert alert-warning">Podcast no encontrado.</div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { collection, query, onSnapshot } from 'firebase/firestore'
+// [NUEVO] Se importa 'deleteDoc'
+import {
+  collection,
+  query,
+  onSnapshot,
+  doc,
+  getDoc,
+  addDoc,
+  serverTimestamp,
+  orderBy,
+  deleteDoc,
+} from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { usePlayerStore } from '@/stores/player'
 import { usePodcastStore } from '@/stores/counter'
 import { useFavoritesStore } from '@/stores/favorites'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const playerStore = usePlayerStore()
 const podcastStore = usePodcastStore()
 const favoritesStore = useFavoritesStore()
+const authStore = useAuthStore()
 
+const podcast = ref(null)
 const episodes = ref([])
 const loading = ref(true)
 const podcastId = route.params.id
 let unsubscribeEpisodes = null
 
-const podcast = computed(() => podcastStore.podcasts.find((p) => p.id === podcastId))
+const selectedEpisodeForComments = ref(null)
+const comments = ref([])
+const commentsLoading = ref(false)
+const newCommentText = ref('')
+const isPostingComment = ref(false)
+let unsubscribeComments = null
+
+// [NUEVO] Estado para la moderación
+const selectedComments = ref(new Set())
+
 const playEpisode = (episode) => playerStore.playOnDemandTrack(episode)
 
-onMounted(async () => {
-  if (podcastStore.podcasts.length === 0) {
-    await podcastStore.fetchPodcasts()
+const naturalSort = (a, b) => {
+  return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
+}
+
+const formatDate = (date) => {
+  if (!date) return ''
+  return new Intl.DateTimeFormat('es-ES', { dateStyle: 'long', timeStyle: 'short' }).format(date)
+}
+
+const selectEpisodeForComments = (episode) => {
+  if (selectedEpisodeForComments.value?.id === episode.id) {
+    selectedEpisodeForComments.value = null
+    if (unsubscribeComments) unsubscribeComments()
+    comments.value = []
+    return
+  }
+
+  selectedEpisodeForComments.value = episode
+  if (unsubscribeComments) unsubscribeComments()
+  comments.value = []
+  selectedComments.value.clear() // Limpia la selección al cambiar de episodio
+
+  if (episode.commentsEnabled) {
+    commentsLoading.value = true
+    const commentsQuery = query(
+      collection(db, 'podcasts', podcastId, 'episodes', episode.id, 'comments'),
+      orderBy('createdAt', 'desc'),
+    )
+
+    unsubscribeComments = onSnapshot(
+      commentsQuery,
+      (snapshot) => {
+        comments.value = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        commentsLoading.value = false
+      },
+      (error) => {
+        console.error('Error cargando comentarios:', error)
+        commentsLoading.value = false
+      },
+    )
+  }
+}
+
+const postComment = async () => {
+  if (!newCommentText.value.trim() || !selectedEpisodeForComments.value) return
+  isPostingComment.value = true
+  try {
+    const commentsCol = collection(
+      db,
+      'podcasts',
+      podcastId,
+      'episodes',
+      selectedEpisodeForComments.value.id,
+      'comments',
+    )
+    await addDoc(commentsCol, {
+      text: newCommentText.value,
+      authorName: authStore.user.displayName || authStore.user.email,
+      authorUid: authStore.user.uid,
+      createdAt: serverTimestamp(),
+    })
+    newCommentText.value = ''
+  } catch (error) {
+    console.error('Error al publicar comentario:', error)
+    alert('No se pudo publicar tu comentario.')
+  } finally {
+    isPostingComment.value = false
+  }
+}
+
+// [NUEVO] Funciones de moderación
+const toggleCommentSelection = (commentId) => {
+  if (selectedComments.value.has(commentId)) {
+    selectedComments.value.delete(commentId)
+  } else {
+    selectedComments.value.add(commentId)
+  }
+}
+
+const deleteSelectedComments = async () => {
+  const count = selectedComments.value.size
+  if (count === 0) return
+
+  if (
+    !confirm(
+      `¿Estás seguro de que quieres eliminar ${count} comentario(s) seleccionados? Esta acción no se puede deshacer.`,
+    )
+  ) {
+    return
   }
 
   try {
+    const deletePromises = []
+    selectedComments.value.forEach((commentId) => {
+      const commentRef = doc(
+        db,
+        'podcasts',
+        podcastId,
+        'episodes',
+        selectedEpisodeForComments.value.id,
+        'comments',
+        commentId,
+      )
+      deletePromises.push(deleteDoc(commentRef))
+    })
+
+    await Promise.all(deletePromises)
+    selectedComments.value.clear() // Limpia la selección después de borrar
+  } catch (error) {
+    console.error('Error eliminando comentarios:', error)
+    alert('Ocurrió un error al eliminar los comentarios.')
+  }
+}
+
+onMounted(async () => {
+  try {
+    let foundPodcast = podcastStore.podcasts.find((p) => p.id === podcastId)
+    if (!foundPodcast) {
+      const podcastRef = doc(db, 'podcasts', podcastId)
+      const docSnap = await getDoc(podcastRef)
+      if (docSnap.exists()) {
+        foundPodcast = { id: docSnap.id, ...docSnap.data() }
+      }
+    }
+    if (!foundPodcast) {
+      loading.value = false
+      return
+    }
+    podcast.value = foundPodcast
     const episodesCol = collection(db, 'podcasts', podcastId, 'episodes')
     const q = query(episodesCol)
-
     unsubscribeEpisodes = onSnapshot(q, (episodesSnapshot) => {
-      const fetchedEpisodes = episodesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-
-      // [NUEVO] Se ordenan los episodios alfabéticamente por título en el lado del cliente.
-      // Esto asegura que todos los episodios se muestren, independientemente de sus campos,
-      // y se presenten en un orden consistente.
-      fetchedEpisodes.sort((a, b) => a.title.localeCompare(b.title))
-
+      let fetchedEpisodes = episodesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      fetchedEpisodes.sort(naturalSort)
       episodes.value = fetchedEpisodes
       loading.value = false
     })
   } catch (error) {
-    console.error('Error fetching episodes:', error)
+    console.error('Error al cargar la página del podcast:', error)
     loading.value = false
   }
 })
 
 onUnmounted(() => {
-  if (unsubscribeEpisodes) {
-    unsubscribeEpisodes()
-  }
+  if (unsubscribeEpisodes) unsubscribeEpisodes()
+  if (unsubscribeComments) unsubscribeComments()
 })
 </script>
 
 <style scoped>
+/* Tus estilos existentes... */
 .img-fluid {
   max-height: 350px;
   border-radius: 1rem !important;
@@ -153,5 +383,34 @@ onUnmounted(() => {
   100% {
     transform: scale(1);
   }
+}
+.list-group-item-action {
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+.list-group-item-action.active-episode {
+  background-color: #0075ffa8;
+  color: white;
+  border-color: #0075ffa8;
+}
+.comments-section-wrapper {
+  background-color: #f8f9fa;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e9ecef;
+}
+.comment-item {
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+}
+
+/* [NUEVO] Estilos para la moderación */
+.moderation-bar {
+  border-color: #ffc107;
+}
+.form-check-input {
+  cursor: pointer;
+  transform: scale(1.2);
+  margin-top: 0.25rem;
 }
 </style>
