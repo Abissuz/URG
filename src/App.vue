@@ -43,17 +43,11 @@
               </router-link>
             </li>
 
-            <!-- =============================================== -->
-            <!--     👇 MEJORA DE UX - ESTADO DE CARGA 👇      -->
-            <!-- =============================================== -->
-
-            <!-- 1. Muestra este esqueleto MIENTRAS se verifica el rol -->
+            <!-- MEJORA DE UX - ESTADO DE CARGA -->
             <li v-if="authStore.loading && authStore.isLoggedIn" class="nav-item-placeholder">
               <div class="placeholder-icon"></div>
               <div class="placeholder-text"></div>
             </li>
-
-            <!-- 2. Muestra el enlace real DESPUÉS de cargar Y si tiene permiso -->
             <li v-if="!authStore.loading && authStore.canUpdateContent">
               <router-link to="/actualizar-contenido" class="nav-item" active-class="active">
                 <svg viewBox="0 0 24 24" class="nav-icon">
@@ -65,10 +59,6 @@
                 <span>Actualizar Contenido</span>
               </router-link>
             </li>
-
-            <!-- =============================================== -->
-
-            <!-- RESTO DE ENLACES ESTÁTICOS -->
             <li>
               <router-link to="/nosotros" class="nav-item" active-class="active">
                 <svg viewBox="0 0 24 24" class="nav-icon">
@@ -170,13 +160,13 @@
             </div>
 
             <div v-if="authStore.loading" class="user-menu-placeholder"></div>
-            <router-link v-else-if="!authStore.isLoggedIn" to="/login" class="login-btn"
-              >Iniciar Sesión</router-link
-            >
-            <router-link v-else-if="!authStore.isLoggedIn" to="/login" class="login-btn-mobile"
-              ><img src="@/assets/img/login-mobile.png" alt=""
-            /></router-link>
-
+            <!-- [MODIFICADO] Se agrupan los botones de login bajo un solo <template> para que el v-if funcione correctamente -->
+            <template v-else-if="!authStore.isLoggedIn">
+              <router-link to="/login" class="login-btn">Iniciar Sesión</router-link>
+              <router-link to="/login" class="login-btn-mobile">
+                <img src="@/assets/img/login-mobile.png" alt="Iniciar Sesión" />
+              </router-link>
+            </template>
             <div v-else class="user-menu" ref="userMenuRef">
               <button @click.stop="toggleDropdown" class="user-profile-btn">
                 <span class="user-name">{{
@@ -219,13 +209,11 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { usePlayerStore } from './stores/player.js'
 import { useAuthStore } from './stores/auth.js'
-// 1. Se importa el store de podcasts
 import { usePodcastStore } from './stores/counter.js'
 
 import Footer from './components/Footer.vue'
 import BottomPlayer from './components/BottomPlayer.vue'
 
-// 2. Se crea la instancia de cada store
 const playerStore = usePlayerStore()
 const authStore = useAuthStore()
 const podcastStore = usePodcastStore()
@@ -258,7 +246,6 @@ const cerrarSesion = () => {
 onMounted(() => {
   playerStore.init(audioTag.value)
   authStore.fetchUser()
-  // 3. Se llama a la nueva función para iniciar la escucha de podcasts
   podcastStore.initialize()
   document.addEventListener('click', handleClickOutside)
 })
@@ -269,7 +256,7 @@ onUnmounted(() => {
 </script>
 
 <style>
-/* Tus estilos existentes se mantienen igual */
+/* Tus estilos no necesitan cambios */
 html,
 body,
 #app {
@@ -279,19 +266,16 @@ body,
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow: hidden;
 }
-
 .app-layout-container {
   display: flex;
   height: 100vh;
 }
-
 .main-content-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
 }
-
 .main-header {
   position: sticky;
   top: 0;
@@ -304,11 +288,9 @@ body,
   border-bottom: 1px solid #282828;
   flex-shrink: 0;
 }
-
 .page-content {
   flex-grow: 1;
 }
-
 .sidebar {
   width: 240px;
   background-color: #ffffff;
@@ -317,13 +299,11 @@ body,
   flex-shrink: 0;
   transition: transform 0.3s ease-in-out;
 }
-
 .sidebar-content {
   padding: 1.5rem 0.75rem;
   height: 90%;
   border-right: #3491ff82 solid 1px;
 }
-
 .logo-area {
   display: flex;
   align-items: center;
@@ -332,14 +312,12 @@ body,
   height: 70px;
   background-color: #0d4d98;
 }
-
 .unimar-logo {
   height: auto;
   width: 100%;
   max-width: 180px;
   object-fit: contain;
 }
-
 .nav-list {
   display: flex;
   flex-direction: column;
@@ -348,7 +326,6 @@ body,
   margin: 0;
   gap: 3px;
 }
-
 .nav-item {
   display: flex;
   align-items: center;
@@ -359,20 +336,16 @@ body,
   font-weight: 600;
   transition: all 0.2s ease;
 }
-
 .nav-item:hover,
 .nav-item.active {
   background-color: #0075ffa8;
   color: #fff;
 }
-
 .nav-icon {
   width: 24px;
   height: 24px;
   margin-right: 1rem;
 }
-
-/* 👇 ESTILOS PARA EL PLACEHOLDER 👇 */
 .nav-item-placeholder {
   display: flex;
   align-items: center;
@@ -380,32 +353,27 @@ body,
   border-radius: 6px;
   gap: 1rem;
 }
-
 .placeholder-icon,
 .placeholder-text {
   background-color: #e0e0e0;
   border-radius: 4px;
   animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
-
 .placeholder-icon {
   width: 24px;
   height: 24px;
 }
-
 .placeholder-text {
   width: 120px;
   height: 16px;
 }
-
 .user-menu-placeholder {
-  width: 150px; /* Ancho aproximado del menu de usuario */
+  width: 150px;
   height: 40px;
   background-color: #e0e0e0;
   border-radius: 50px;
   animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
-
 @keyframes pulse {
   0%,
   100% {
@@ -415,8 +383,6 @@ body,
     opacity: 0.5;
   }
 }
-
-/* El resto de tus estilos ... */
 .header-grid {
   display: flex;
   justify-content: space-between;

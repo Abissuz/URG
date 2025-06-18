@@ -90,8 +90,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+// [MODIFICADO] Se añade 'watch' para la reactividad
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import PodcastGrid from '@/components/PodcastGrid.vue'
+
+const route = useRoute()
 
 // --- ESTADO GENERAL DE LA VISTA ---
 const activeView = ref('videos')
@@ -102,24 +106,38 @@ const setActiveView = (view) => {
   searchQuery.value = ''
 }
 
-// --- LÓGICA PARA VIDEOS DE YOUTUBE ---
+// [NUEVO] Función centralizada para leer la URL
+const setViewFromQuery = (query) => {
+  if (query.view === 'podcasts') {
+    activeView.value = 'podcasts'
+  } else {
+    activeView.value = 'videos' // Por defecto a videos si el parámetro es otro o no existe
+  }
+}
+
+// [NUEVO] Observador que reacciona a los cambios en la URL
+watch(
+  () => route.query,
+  (newQuery) => {
+    setViewFromQuery(newQuery)
+  },
+)
+
+// --- LÓGICA PARA VIDEOS DE YOUTUBE (sin cambios) ---
 const API_KEY = import.meta.env.VITE_APP_YOUTUBE_API_KEY
 const CHANNEL_ID = import.meta.env.VITE_APP_YOUTUBE_CHANNEL_ID
 const UPLOADS_PLAYLIST_ID = CHANNEL_ID ? `UU${CHANNEL_ID.substring(2)}` : null
 const VIDEOS_PER_PAGE = 9
-
 const allVideos = ref([])
 const videoLoading = ref(true)
 const videoError = ref(null)
 const videoCurrentPage = ref(1)
-
 const filteredVideos = computed(() => {
   if (!searchQuery.value.trim()) return allVideos.value
   const query = searchQuery.value.toLowerCase()
   if (videoCurrentPage.value !== 1) videoCurrentPage.value = 1
   return allVideos.value.filter((video) => video.title.toLowerCase().includes(query))
 })
-
 const videoTotalPages = computed(() => Math.ceil(filteredVideos.value.length / VIDEOS_PER_PAGE))
 const paginatedVideos = computed(() => {
   const start = (videoCurrentPage.value - 1) * VIDEOS_PER_PAGE
@@ -154,14 +172,12 @@ const videoPages = computed(() => {
   }
   return pages
 })
-
 const formatDate = (dateString) =>
   new Date(dateString).toLocaleDateString('es-ES', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   })
-
 const fetchAllVideos = async () => {
   videoLoading.value = true
   videoError.value = null
@@ -199,14 +215,14 @@ const goToVideoPage = (page) => {
 
 // --- INICIALIZACIÓN ---
 onMounted(() => {
+  // [MODIFICADO] Se llama a la nueva función para la carga inicial
+  setViewFromQuery(route.query)
   fetchAllVideos()
-  // [CORREGIDO] Se elimina la llamada a podcastStore.fetchPodcasts()
-  // El store de podcasts ahora se inicializa en App.vue para estar disponible en toda la app.
 })
 </script>
 
 <style scoped>
-/* --- ESTILOS DEL INTERRUPTOR (TOGGLE) --- */
+/* Tus estilos no necesitan cambios */
 .view-toggle-container {
   display: flex;
   justify-content: center;
@@ -247,8 +263,6 @@ onMounted(() => {
 .toggle-switch .glider.on-podcasts {
   transform: translateX(90%);
 }
-
-/* El resto de tus estilos */
 .container-fluid {
   font-family: 'Sulphur Point', sans-serif;
 }

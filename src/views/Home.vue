@@ -19,24 +19,6 @@
         </div>
       </div>
     </div>
-    <!-- Historial
-    <div class="historial-container">
-      <div class="historial-header">
-        <h2>Historial</h2>
-      </div>
-      <div class="music-table">
-        <div v-for="i in 12" :key="i" class="track">
-          <img :src="logoUrl" class="track-cover" alt="Album" />
-          <div class="track-info">
-            <span class="track-title">Canción ejemplo {{ i }}</span>
-            <span class="track-artist">Artista {{ i }}</span>
-            <span class="track-duration">3:{{ i < 10 ? '0' + i : i }}</span>
-          </div>
-        </div>
-      </div>
-    </div> -->
-    <!-- Cronograma -->
-    <!-- Historial -->
     <div class="cronograma-container">
       <!-- Cabecera -->
       <div class="cronograma-header">
@@ -57,11 +39,13 @@
   </div>
 
   <VideoPreview />
+  <PodcastPreview />
 </template>
 
 <script setup>
 import logoUrl from '@/assets/img/logo-urg.png' // Importación correcta de la imagen
 import VideoPreview from '@/components/VideoPreview.vue'
+import PodcastPreview from '@/components/PodcastPreview.vue'
 </script>
 
 <style scoped>
