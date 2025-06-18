@@ -1,38 +1,66 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore'
+import { ref, watch } from 'vue'
+// [NUEVO] Se importa 'onSnapshot'
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  setDoc,
+  onSnapshot,
+} from 'firebase/firestore'
 import { db, auth } from '@/firebase/config'
 import { onAuthStateChanged } from 'firebase/auth'
 
 export const useFavoritesStore = defineStore('favorites', () => {
   // --- ESTADO ---
   const favoritePodcasts = ref(new Set())
-  const favoriteEpisodes = ref([]) // Un array de objetos de episodio completos
+  const favoriteEpisodes = ref([])
   const loading = ref(true)
   const userId = ref(null)
+  let unsubscribeFavorites = null // [NUEVO] Para guardar la función de des-suscripción
 
   // --- ACCIONES ---
-  const fetchFavorites = async (uid) => {
+
+  // [MODIFICADO] Esta función ahora se llama 'listenForFavorites' para reflejar su nueva naturaleza
+  const listenForFavorites = (uid) => {
+    // Si ya hay una suscripción activa, la cancelamos para evitar duplicados
+    if (unsubscribeFavorites) {
+      unsubscribeFavorites()
+    }
+
     if (!uid) {
       favoritePodcasts.value.clear()
       favoriteEpisodes.value = []
       loading.value = false
       return
     }
+
     loading.value = true
     const userDocRef = doc(db, 'users', uid)
-    const docSnap = await getDoc(userDocRef)
 
-    if (docSnap.exists() && docSnap.data().favoritos) {
-      const favs = docSnap.data().favoritos
-      favoritePodcasts.value = new Set(favs.podcasts || [])
-      favoriteEpisodes.value = favs.episodios || []
-    } else {
-      favoritePodcasts.value.clear()
-      favoriteEpisodes.value = []
-      await setDoc(userDocRef, { favoritos: { podcasts: [], episodios: [] } }, { merge: true })
-    }
-    loading.value = false
+    // [MODIFICADO] Se reemplaza getDoc con onSnapshot
+    unsubscribeFavorites = onSnapshot(
+      userDocRef,
+      (docSnap) => {
+        if (docSnap.exists() && docSnap.data().favoritos) {
+          const favs = docSnap.data().favoritos
+          favoritePodcasts.value = new Set(favs.podcasts || [])
+          favoriteEpisodes.value = favs.episodios || []
+        } else {
+          favoritePodcasts.value.clear()
+          favoriteEpisodes.value = []
+          // Si el documento no existe, se puede crear aquí si es necesario
+          // setDoc(userDocRef, { favoritos: { podcasts: [], episodios: [] } }, { merge: true });
+        }
+        loading.value = false
+      },
+      (error) => {
+        console.error('Error escuchando los favoritos:', error)
+        loading.value = false
+      },
+    )
   }
 
   const togglePodcastFavorite = async (podcastId) => {
@@ -41,30 +69,28 @@ export const useFavoritesStore = defineStore('favorites', () => {
 
     if (favoritePodcasts.value.has(podcastId)) {
       await updateDoc(userDocRef, { 'favoritos.podcasts': arrayRemove(podcastId) })
-      favoritePodcasts.value.delete(podcastId)
+      // No es necesario actualizar el estado local, onSnapshot lo hará
     } else {
       await updateDoc(userDocRef, { 'favoritos.podcasts': arrayUnion(podcastId) })
-      favoritePodcasts.value.add(podcastId)
+      // No es necesario actualizar el estado local, onSnapshot lo hará
     }
   }
 
-  // ¡LÓGICA CORREGIDA PARA GUARDAR EPISODIOS!
   const toggleEpisodeFavorite = async (podcastId, episode) => {
     if (!userId.value || !episode.id) return
     const userDocRef = doc(db, 'users', userId.value)
 
-    // Añadimos el ID del podcast al objeto del episodio para futuras referencias
-    const episodeToSave = { ...episode, podcastId: podcastId }
+    // Es crucial que el objeto que guardamos y el que eliminamos sean idénticos.
+    // Buscamos el episodio exacto en el estado local para asegurar consistencia.
+    const existingEpisode = favoriteEpisodes.value.find((fav) => fav.id === episode.id)
 
-    const existingIndex = favoriteEpisodes.value.findIndex((fav) => fav.id === episode.id)
-
-    if (existingIndex > -1) {
-      const episodeToRemove = favoriteEpisodes.value[existingIndex]
-      await updateDoc(userDocRef, { 'favoritos.episodios': arrayRemove(episodeToRemove) })
-      favoriteEpisodes.value.splice(existingIndex, 1)
+    if (existingEpisode) {
+      await updateDoc(userDocRef, { 'favoritos.episodios': arrayRemove(existingEpisode) })
+      // No es necesario actualizar el estado local, onSnapshot lo hará
     } else {
+      const episodeToSave = { ...episode, podcastId: podcastId }
       await updateDoc(userDocRef, { 'favoritos.episodios': arrayUnion(episodeToSave) })
-      favoriteEpisodes.value.push(episodeToSave)
+      // No es necesario actualizar el estado local, onSnapshot lo hará
     }
   }
 
@@ -72,9 +98,10 @@ export const useFavoritesStore = defineStore('favorites', () => {
   const isEpisodeFavorite = (episodeId) =>
     favoriteEpisodes.value.some((fav) => fav.id === episodeId)
 
+  // [MODIFICADO] onAuthStateChanged ahora llama a la nueva función de escucha
   onAuthStateChanged(auth, (user) => {
     userId.value = user ? user.uid : null
-    fetchFavorites(userId.value)
+    listenForFavorites(userId.value) // Se establece o se limpia el listener
   })
 
   return {

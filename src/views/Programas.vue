@@ -39,7 +39,6 @@
       </div>
       <div v-else class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         <div v-for="video in paginatedVideos" :key="video.id" class="col">
-          <!-- INICIO DE LA CORRECCIÓN: Se asegura que el :href es una URL limpia -->
           <a
             :href="`https://www.youtube.com/watch?v=${video.id}`"
             target="_blank"
@@ -56,7 +55,6 @@
               </div>
             </div>
           </a>
-          <!-- FIN DE LA CORRECCIÓN -->
         </div>
       </div>
       <nav v-if="videoTotalPages > 1 && !videoLoading" aria-label="Page navigation">
@@ -93,7 +91,6 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { usePodcastStore } from '@/stores/counter'
 import PodcastGrid from '@/components/PodcastGrid.vue'
 
 // --- ESTADO GENERAL DE LA VISTA ---
@@ -200,13 +197,11 @@ const goToVideoPage = (page) => {
   if (page >= 1 && page <= videoTotalPages.value) videoCurrentPage.value = page
 }
 
-// --- LÓGICA PARA PODCASTS DE FIRESTORE ---
-const podcastStore = usePodcastStore()
-
 // --- INICIALIZACIÓN ---
 onMounted(() => {
   fetchAllVideos()
-  podcastStore.fetchPodcasts()
+  // [CORREGIDO] Se elimina la llamada a podcastStore.fetchPodcasts()
+  // El store de podcasts ahora se inicializa en App.vue para estar disponible en toda la app.
 })
 </script>
 

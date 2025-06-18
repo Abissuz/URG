@@ -1,6 +1,8 @@
 <template>
+  <!-- Si la ruta tiene la meta 'oculto' (como el login), solo muestra el RouterView -->
   <RouterView v-if="$route.meta.oculto" />
 
+  <!-- Layout principal para el resto de la aplicación -->
   <div v-else class="app-layout-container">
     <aside class="sidebar" :class="{ 'is-mobile-open': isMobileMenuOpen }">
       <button @click="toggleMobileMenu" class="sidebar-close-btn">
@@ -16,9 +18,11 @@
           <img src="@/assets/img/Blanci.png" alt="Logo UNIMAR Radio" class="unimar-logo" />
         </div>
       </router-link>
+
       <div class="sidebar-content">
         <nav class="navigation-menu">
           <ul class="nav-list">
+            <!-- ENLACES ESTÁTICOS (Siempre visibles) -->
             <li>
               <router-link to="/" class="nav-item" active-class="active">
                 <svg viewBox="0 0 24 24" class="nav-icon">
@@ -38,6 +42,33 @@
                 <span>Programas</span>
               </router-link>
             </li>
+
+            <!-- =============================================== -->
+            <!--     👇 MEJORA DE UX - ESTADO DE CARGA 👇      -->
+            <!-- =============================================== -->
+
+            <!-- 1. Muestra este esqueleto MIENTRAS se verifica el rol -->
+            <li v-if="authStore.loading && authStore.isLoggedIn" class="nav-item-placeholder">
+              <div class="placeholder-icon"></div>
+              <div class="placeholder-text"></div>
+            </li>
+
+            <!-- 2. Muestra el enlace real DESPUÉS de cargar Y si tiene permiso -->
+            <li v-if="!authStore.loading && authStore.canUpdateContent">
+              <router-link to="/actualizar-contenido" class="nav-item" active-class="active">
+                <svg viewBox="0 0 24 24" class="nav-icon">
+                  <path
+                    fill="currentColor"
+                    d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83l3.75 3.75l1.83-1.83z"
+                  ></path>
+                </svg>
+                <span>Actualizar Contenido</span>
+              </router-link>
+            </li>
+
+            <!-- =============================================== -->
+
+            <!-- RESTO DE ENLACES ESTÁTICOS -->
             <li>
               <router-link to="/nosotros" class="nav-item" active-class="active">
                 <svg viewBox="0 0 24 24" class="nav-icon">
@@ -137,16 +168,21 @@
                 class="volume-slider"
               />
             </div>
-            <router-link v-if="!isAuthenticated" to="/login" class="login-btn"
+
+            <div v-if="authStore.loading" class="user-menu-placeholder"></div>
+            <router-link v-else-if="!authStore.isLoggedIn" to="/login" class="login-btn"
               >Iniciar Sesión</router-link
             >
-            <router-link v-if="!isAuthenticated" to="/login" class="login-btn-mobile"
+            <router-link v-else-if="!authStore.isLoggedIn" to="/login" class="login-btn-mobile"
               ><img src="@/assets/img/login-mobile.png" alt=""
             /></router-link>
+
             <div v-else class="user-menu" ref="userMenuRef">
               <button @click.stop="toggleDropdown" class="user-profile-btn">
-                <span class="user-name">{{ userName }}</span>
-                <div class="user-avatar">{{ userInitial }}</div>
+                <span class="user-name">{{
+                  authStore.user.displayName || authStore.user.email
+                }}</span>
+                <div class="user-avatar">{{ authStore.userInitial }}</div>
               </button>
               <transition name="dropdown-fade">
                 <div v-if="showDropdown" class="dropdown-menu">
@@ -173,83 +209,67 @@
       <Footer />
     </div>
 
-    <!-- El ÚNICO elemento de audio, se pasa al store para que lo controle -->
     <audio ref="audioTag" autoplay preload="auto" crossorigin="anonymous" hidden></audio>
     <BottomPlayer />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { RouterView, useRouter } from 'vue-router'
-import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { RouterView } from 'vue-router'
+import { usePlayerStore } from './stores/player.js'
+import { useAuthStore } from './stores/auth.js'
+// 1. Se importa el store de podcasts
+import { usePodcastStore } from './stores/counter.js'
+
 import Footer from './components/Footer.vue'
 import BottomPlayer from './components/BottomPlayer.vue'
-import { usePlayerStore } from './stores/player.js'
 
-// --- INICIALIZACIÓN ---
+// 2. Se crea la instancia de cada store
 const playerStore = usePlayerStore()
-const audioTag = ref(null)
-const router = useRouter()
-const auth = getAuth()
+const authStore = useAuthStore()
+const podcastStore = usePodcastStore()
 
-// --- ESTADO LOCAL DE UI ---
-const isMobileMenuOpen = ref(false)
-const isAuthenticated = ref(false)
-const showDropdown = ref(false)
-const userName = ref('')
+const audioTag = ref(null)
 const userMenuRef = ref(null)
 
-// --- COMPUTED PROPERTIES ---
-const userInitial = computed(() => (userName.value ? userName.value.charAt(0).toUpperCase() : '?'))
+const isMobileMenuOpen = ref(false)
+const showDropdown = ref(false)
 
-// --- FUNCIONES ---
 const toggleMobileMenu = () => {
   isMobileMenuOpen.value = !isMobileMenuOpen.value
 }
 const toggleDropdown = () => {
   showDropdown.value = !showDropdown.value
 }
-
 const updateVolume = (event) => {
   playerStore.setVolume(parseFloat(event.target.value))
 }
-
 const handleClickOutside = (event) => {
   if (showDropdown.value && userMenuRef.value && !userMenuRef.value.contains(event.target)) {
     showDropdown.value = false
   }
 }
-
-const cerrarSesion = async () => {
-  await signOut(auth)
+const cerrarSesion = () => {
   showDropdown.value = false
-  router.push('/')
+  authStore.logout()
 }
 
-// --- HOOKS DE CICLO DE VIDA ---
 onMounted(() => {
-  // Inicializa el store del reproductor con el elemento <audio>
   playerStore.init(audioTag.value)
-
-  // Listener para cerrar el menú de usuario
+  authStore.fetchUser()
+  // 3. Se llama a la nueva función para iniciar la escucha de podcasts
+  podcastStore.initialize()
   document.addEventListener('click', handleClickOutside)
-
-  // Observador del estado de autenticación de Firebase
-  onAuthStateChanged(auth, (user) => {
-    isAuthenticated.value = !!user
-    userName.value = user ? user.displayName || user.email : ''
-  })
 })
 
 onUnmounted(() => {
-  // Limpia el listener para evitar fugas de memoria
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
 <style>
-/* ... Tus estilos existentes ... */
+/* Tus estilos existentes se mantienen igual */
 html,
 body,
 #app {
@@ -259,16 +279,19 @@ body,
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow: hidden;
 }
+
 .app-layout-container {
   display: flex;
   height: 100vh;
 }
+
 .main-content-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
 }
+
 .main-header {
   position: sticky;
   top: 0;
@@ -281,9 +304,11 @@ body,
   border-bottom: 1px solid #282828;
   flex-shrink: 0;
 }
+
 .page-content {
   flex-grow: 1;
 }
+
 .sidebar {
   width: 240px;
   background-color: #ffffff;
@@ -292,11 +317,13 @@ body,
   flex-shrink: 0;
   transition: transform 0.3s ease-in-out;
 }
+
 .sidebar-content {
   padding: 1.5rem 0.75rem;
   height: 90%;
   border-right: #3491ff82 solid 1px;
 }
+
 .logo-area {
   display: flex;
   align-items: center;
@@ -305,12 +332,14 @@ body,
   height: 70px;
   background-color: #0d4d98;
 }
+
 .unimar-logo {
   height: auto;
   width: 100%;
   max-width: 180px;
   object-fit: contain;
 }
+
 .nav-list {
   display: flex;
   flex-direction: column;
@@ -319,6 +348,7 @@ body,
   margin: 0;
   gap: 3px;
 }
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -329,16 +359,64 @@ body,
   font-weight: 600;
   transition: all 0.2s ease;
 }
+
 .nav-item:hover,
 .nav-item.active {
   background-color: #0075ffa8;
   color: #fff;
 }
+
 .nav-icon {
   width: 24px;
   height: 24px;
   margin-right: 1rem;
 }
+
+/* 👇 ESTILOS PARA EL PLACEHOLDER 👇 */
+.nav-item-placeholder {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  gap: 1rem;
+}
+
+.placeholder-icon,
+.placeholder-text {
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.placeholder-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.placeholder-text {
+  width: 120px;
+  height: 16px;
+}
+
+.user-menu-placeholder {
+  width: 150px; /* Ancho aproximado del menu de usuario */
+  height: 40px;
+  background-color: #e0e0e0;
+  border-radius: 50px;
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* El resto de tus estilos ... */
 .header-grid {
   display: flex;
   justify-content: space-between;
@@ -528,7 +606,6 @@ body,
   align-items: center;
   justify-content: center;
 }
-
 @media (max-width: 992px) {
   .sidebar {
     position: fixed;

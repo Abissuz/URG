@@ -5,6 +5,7 @@ import Programas from '@/views/Programas.vue'
 import Nosotros from '@/views/Nosotros.vue'
 import PodcastDetail from '@/views/PodcastDetail.vue'
 import FavoritesView from '@/views/FavoritesView.vue' // <-- Se importa la nueva vista
+import UpdateContentView from '@/views/UpdateContentView.vue' // <-- Se importa la nueva vista
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -43,7 +44,12 @@ const router = createRouter({
       component: FavoritesView,
       meta: { requiresAuth: true }, // Opcional: para proteger la ruta
     },
-    // --- FIN DE LA RUTA AÑADIDA ---
+    {
+      path: '/actualizar-contenido',
+      name: 'actualizar-contenido',
+      // Este es el componente que crearemos a continuación.
+      component: UpdateContentView,
+    },
   ],
 })
 

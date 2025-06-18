@@ -26,7 +26,6 @@
           >
             <span>{{ episode.title }}</span>
             <div class="d-flex align-items-center gap-3">
-              <!-- Botón de Favorito para Episodio (Llamada corregida) -->
               <button
                 @click.stop="favoritesStore.toggleEpisodeFavorite(podcastId, episode)"
                 class="btn-favorite"
@@ -52,9 +51,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { collection, getDocs, orderBy, query } from 'firebase/firestore'
+import { collection, query, onSnapshot } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { usePlayerStore } from '@/stores/player'
 import { usePodcastStore } from '@/stores/counter'
@@ -68,6 +67,7 @@ const favoritesStore = useFavoritesStore()
 const episodes = ref([])
 const loading = ref(true)
 const podcastId = route.params.id
+let unsubscribeEpisodes = null
 
 const podcast = computed(() => podcastStore.podcasts.find((p) => p.id === podcastId))
 const playEpisode = (episode) => playerStore.playOnDemandTrack(episode)
@@ -76,15 +76,31 @@ onMounted(async () => {
   if (podcastStore.podcasts.length === 0) {
     await podcastStore.fetchPodcasts()
   }
+
   try {
     const episodesCol = collection(db, 'podcasts', podcastId, 'episodes')
-    const q = query(episodesCol, orderBy('publishDate', 'desc'))
-    const episodesSnapshot = await getDocs(q)
-    episodes.value = episodesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+    const q = query(episodesCol)
+
+    unsubscribeEpisodes = onSnapshot(q, (episodesSnapshot) => {
+      const fetchedEpisodes = episodesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+
+      // [NUEVO] Se ordenan los episodios alfabéticamente por título en el lado del cliente.
+      // Esto asegura que todos los episodios se muestren, independientemente de sus campos,
+      // y se presenten en un orden consistente.
+      fetchedEpisodes.sort((a, b) => a.title.localeCompare(b.title))
+
+      episodes.value = fetchedEpisodes
+      loading.value = false
+    })
   } catch (error) {
     console.error('Error fetching episodes:', error)
-  } finally {
     loading.value = false
+  }
+})
+
+onUnmounted(() => {
+  if (unsubscribeEpisodes) {
+    unsubscribeEpisodes()
   }
 })
 </script>
