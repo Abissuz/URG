@@ -307,10 +307,7 @@ onMounted(() => {
   transform: translateY(-5px) scale(1.03);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
-.card-img-top {
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-}
+
 .card-title {
   color: #f8f9fa;
 }

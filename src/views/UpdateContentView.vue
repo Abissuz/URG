@@ -137,7 +137,31 @@
 
     <!-- Modal para añadir nuevo episodio -->
     <div v-if="isEpisodeModalOpen" class="modal-overlay" @click="closeNewEpisodeModal">
-      <!-- ... contenido del modal ... -->
+      <div class="modal-content" @click.stop>
+        <h3>Añadir Nuevo Episodio</h3>
+        <form @submit.prevent="saveNewEpisode">
+          <div class="form-group">
+            <label for="episodeTitle">Título del Episodio</label>
+            <input type="text" id="episodeTitle" v-model="newEpisodeForm.title" required />
+          </div>
+          <div class="form-group">
+            <label for="episodeAudioUrl">URL del Audio</label>
+            <input
+              type="url"
+              id="episodeAudioUrl"
+              v-model="newEpisodeForm.audioURL"
+              placeholder="https://ejemplo.com/audio.mp3"
+              required
+            />
+          </div>
+          <div class="modal-actions">
+            <button type="button" @click="closeNewEpisodeModal" class="cancel-btn">Cancelar</button>
+            <button type="submit" :disabled="isSavingEpisode" class="save-btn">
+              {{ isSavingEpisode ? 'Guardando...' : 'Guardar Episodio' }}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </template>

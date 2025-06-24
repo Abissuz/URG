@@ -95,10 +95,7 @@ const favoritePodcasts = computed(() => {
   transform: translateY(-5px) scale(1.02);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
-.card-img-top {
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-}
+
 .card-title {
   color: #0d4d98;
 }

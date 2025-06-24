@@ -1,11 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Home from '@/views/Home.vue'
-import LoginView from '../views/LoginView.vue'
-import Programas from '@/views/Programas.vue'
-import Nosotros from '@/views/Nosotros.vue'
-import PodcastDetail from '@/views/PodcastDetail.vue'
-import FavoritesView from '@/views/FavoritesView.vue' // <-- Se importa la nueva vista
-import UpdateContentView from '@/views/UpdateContentView.vue' // <-- Se importa la nueva vista
+import { useAuthStore } from '@/stores/auth' // Se importa el store de autenticación
+import HomeView from '../views/Home.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -13,44 +8,76 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: Home,
-    },
-    {
-      path: '/login',
-      name: 'login',
-      component: LoginView,
-      meta: { oculto: true },
+      component: HomeView,
     },
     {
       path: '/programas',
       name: 'programas',
-      component: Programas,
+      component: () => import('../views/Programas.vue'),
     },
     {
       path: '/nosotros',
       name: 'nosotros',
-      component: Nosotros,
+      component: () => import('../views/Nosotros.vue'),
     },
     {
-      path: '/podcast/:id',
-      name: 'podcast-detail',
-      component: PodcastDetail,
-      props: true,
+      path: '/login',
+      name: 'login',
+      component: () => import('../views/LoginView.vue'),
+      meta: { oculto: true },
     },
-    // --- INICIO DE LA RUTA AÑADIDA ---
+    // [NUEVO] Se añade la ruta para la vista de detalle del podcast
+    {
+      path: '/podcast/:id', // Define la ruta dinámica
+      name: 'podcast-detail',
+      component: () => import('../views/PodcastDetail.vue'),
+      // Esta ruta es pública, por lo que no necesita meta-información de seguridad
+    },
     {
       path: '/favoritos',
       name: 'favoritos',
-      component: FavoritesView,
-      meta: { requiresAuth: true }, // Opcional: para proteger la ruta
+      component: () => import('../views/FavoritesView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/actualizar-contenido',
       name: 'actualizar-contenido',
-      // Este es el componente que crearemos a continuación.
-      component: UpdateContentView,
+      component: () => import('../views/UpdateContentView.vue'),
+      meta: { requiresAdmin: true },
     },
   ],
+})
+
+// [EL PORTERO] Este código se ejecuta ANTES de cada cambio de ruta.
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
+
+  // Se espera a que la comprobación inicial de Firebase termine
+  await authStore.waitForAuthInit()
+
+  const isLoggedIn = authStore.isLoggedIn
+  const canUpdateContent = authStore.canUpdateContent
+
+  // REGLA 2: ¿La ruta requiere ser admin?
+  if (to.meta.requiresAdmin) {
+    if (isLoggedIn && canUpdateContent) {
+      next() // El usuario es admin, puede pasar.
+    } else {
+      console.warn('Acceso denegado: Se requieren permisos de administrador.')
+      next('/')
+    }
+    // REGLA 1: ¿La ruta requiere solo iniciar sesión?
+  } else if (to.meta.requiresAuth) {
+    if (isLoggedIn) {
+      next() // El usuario ha iniciado sesión, puede pasar.
+    } else {
+      console.warn('Acceso denegado: Se requiere iniciar sesión.')
+      next('/login')
+    }
+  } else {
+    // Si la ruta no tiene ninguna regla especial, todos pueden pasar.
+    next()
+  }
 })
 
 export default router
