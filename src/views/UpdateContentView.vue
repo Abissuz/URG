@@ -1,17 +1,40 @@
 <template>
   <div class="admin-panel">
     <header class="panel-header">
-      <h1>Panel de Actualización de Contenido</h1>
-      <p>Selecciona un podcast para editarlo o crea uno nuevo.</p>
+      <h1>Panel de Administración</h1>
+      <div class="admin-tabs">
+        <button
+          @click="activeAdminView = 'podcasts'"
+          :class="{ active: activeAdminView === 'podcasts' }"
+        >
+          Gestionar Podcasts
+        </button>
+        <button
+          @click="activeAdminView = 'schedule'"
+          :class="{ active: activeAdminView === 'schedule' }"
+        >
+          Gestionar Cronograma
+        </button>
+        <button
+          v-if="authStore.isAdmin"
+          @click="activeAdminView = 'dashboard'"
+          :class="{ active: activeAdminView === 'dashboard' }"
+        >
+          Dashboard
+        </button>
+      </div>
     </header>
 
-    <div class="panel-layout">
-      <!-- Columna Izquierda: Lista de Podcasts -->
+    <div
+      v-if="activeAdminView === 'podcasts'"
+      class="panel-layout"
+      :class="{ 'is-editing-mobile': isEditingMobile }"
+    >
       <aside class="list-column">
         <div class="list-header">
           <h2>Podcasts</h2>
           <button @click="prepareNewPodcast" class="add-new-btn" title="Añadir nuevo podcast">
-            +
+            <img src="@/assets/img/mas.png" alt="Añadir" class="plus" />
           </button>
         </div>
         <div v-if="isLoading" class="loading-indicator">Cargando podcasts...</div>
@@ -20,39 +43,38 @@
             v-for="podcast in podcasts"
             :key="podcast.id"
             class="podcast-list-item"
-            :class="{ active: selectedPodcast && selectedPodcast.id === podcast.id }"
+            :class="{ active: selectedPodcastInfo && selectedPodcastInfo.id === podcast.id }"
             @click="selectPodcast(podcast)"
           >
             {{ podcast.title }}
           </li>
         </ul>
       </aside>
-
-      <!-- Columna Derecha: Formulario de Edición -->
       <main class="form-column">
-        <div v-if="!selectedPodcast" class="form-placeholder">
+        <div v-if="!selectedPodcastInfo" class="form-placeholder">
           <p>← Selecciona un podcast o haz clic en '+' para crear uno nuevo.</p>
         </div>
-
         <form v-else @submit.prevent="saveChanges" class="edit-form">
+          <button @click="isEditingMobile = false" type="button" class="back-to-list-btn">
+            &larr; Volver a la lista
+          </button>
           <h2>{{ form.id ? 'Editando: ' + form.title : 'Creando Nuevo Podcast' }}</h2>
-
           <div class="form-grid">
             <div class="form-group">
-              <label for="title">Título del Podcast</label
-              ><input type="text" id="title" v-model="form.title" required />
+              <label for="title">Título del Podcast</label>
+              <input type="text" id="title" v-model="form.title" required />
             </div>
             <div class="form-group">
-              <label for="hostName">Nombre del Autor/Host</label
-              ><input type="text" id="hostName" v-model="form.host.name" required />
+              <label for="hostName">Nombre del Autor/Host</label>
+              <input type="text" id="hostName" v-model="form.host.name" required />
             </div>
             <div class="form-group full-width">
-              <label for="description">Descripción</label
-              ><textarea id="description" v-model="form.description" rows="4"></textarea>
+              <label for="description">Descripción</label>
+              <textarea id="description" v-model="form.description" rows="4"></textarea>
             </div>
             <div class="form-group">
-              <label for="coverImage">URL de la Imagen de Portada</label
-              ><input
+              <label for="coverImage">URL de la Imagen de Portada</label>
+              <input
                 type="url"
                 id="coverImage"
                 v-model="form.coverImage"
@@ -60,8 +82,8 @@
               />
             </div>
             <div class="form-group">
-              <label for="hostImage">URL de la Foto del Autor</label
-              ><input
+              <label for="hostImage">URL de la Foto del Autor</label>
+              <input
                 type="url"
                 id="hostImage"
                 v-model="form.host.image"
@@ -69,7 +91,6 @@
               />
             </div>
           </div>
-
           <div class="form-actions">
             <button type="submit" :disabled="isSaving" class="save-btn">
               {{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}
@@ -79,10 +100,8 @@
             </button>
             <p v-if="saveSuccess" class="save-success-message">¡Guardado con éxito!</p>
           </div>
-
           <hr />
-          <!-- Sección de gestión de episodios -->
-          <div class="episodes-section">
+          <div v-if="form.id" class="episodes-section">
             <div class="episodes-header">
               <h3>Episodios</h3>
               <button
@@ -98,9 +117,7 @@
             <ul v-else-if="episodes.length > 0" class="episode-list">
               <li v-for="episode in episodes" :key="episode.id" class="episode-item">
                 <span class="episode-title">{{ episode.title }}</span>
-                <!-- [NUEVO] Contenedor para los botones de acción del episodio -->
                 <div class="episode-actions">
-                  <!-- Interruptor para habilitar/deshabilitar comentarios -->
                   <button
                     @click="toggleComments(episode)"
                     type="button"
@@ -128,14 +145,79 @@
                 </div>
               </li>
             </ul>
-            <p v-else-if="form.id">Este podcast aún no tiene episodios.</p>
-            <p v-else class="text-muted">Guarda el nuevo podcast para poder añadirle episodios.</p>
+            <p v-else>Este podcast aún no tiene episodios.</p>
           </div>
+          <p v-else class="text-muted mt-4">
+            Guarda el nuevo podcast para poder añadirle episodios.
+          </p>
         </form>
       </main>
     </div>
 
-    <!-- Modal para añadir nuevo episodio -->
+    <div v-else-if="activeAdminView === 'schedule'" class="schedule-manager-layout">
+      <aside class="day-tabs">
+        <button
+          v-for="day in weekdays"
+          :key="day"
+          class="day-tab-item"
+          :class="{ active: selectedDayForEditing === day }"
+          @click="selectedDayForEditing = day"
+        >
+          {{ day.charAt(0).toUpperCase() + day.slice(1) }}
+        </button>
+      </aside>
+      <main class="schedule-content">
+        <div v-if="scheduleLoading" class="loading-indicator">Cargando...</div>
+        <div v-else>
+          <ul v-if="schedule[selectedDayForEditing]?.length > 0" class="schedule-list-admin">
+            <li
+              v-for="(item, index) in schedule[selectedDayForEditing]"
+              :key="index"
+              class="schedule-item-admin"
+            >
+              <div class="item-info-admin">
+                <span class="item-time">{{ formatTime(item.time) }}</span>
+                <div class="item-details">
+                  <span class="item-title">{{ item.programTitle }}</span>
+                  <span class="item-host">por {{ item.hostName }}</span>
+                </div>
+              </div>
+              <button
+                @click="removeScheduleItem(selectedDayForEditing, item)"
+                class="delete-schedule-item"
+                title="Eliminar"
+              >
+                &times;
+              </button>
+            </li>
+          </ul>
+          <p v-else class="text-muted text-center py-4">No hay programas para este día.</p>
+          <hr />
+          <form @submit.prevent="addScheduleItem" class="add-schedule-form">
+            <h4 class="mb-3">
+              Añadir a
+              {{ selectedDayForEditing.charAt(0).toUpperCase() + selectedDayForEditing.slice(1) }}
+            </h4>
+            <input type="time" v-model="newScheduleItem.time" required />
+            <select v-model="newScheduleItem.podcastId" required>
+              <option disabled value="">Selecciona un podcast...</option>
+              <option v-for="p in podcasts" :key="p.id" :value="p.id">{{ p.title }}</option>
+            </select>
+            <button type="submit" class="add-schedule-btn" title="Añadir programa">
+              <img src="@/assets/img/mas.png" alt="Añadir" class="plus" />
+            </button>
+          </form>
+        </div>
+      </main>
+    </div>
+
+    <div v-else-if="activeAdminView === 'dashboard'">
+      <DashboardView />
+      <UserManagementView />
+    </div>
+  </div>
+
+  <Teleport to="body">
     <div v-if="isEpisodeModalOpen" class="modal-overlay" @click="closeNewEpisodeModal">
       <div class="modal-content" @click.stop>
         <h3>Añadir Nuevo Episodio</h3>
@@ -163,10 +245,10 @@
         </form>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
-
 <script setup>
+import UserManagementView from '@/components/UserManagementView.vue'
 import { ref, onMounted, watch } from 'vue'
 import {
   collection,
@@ -178,15 +260,20 @@ import {
   deleteDoc,
   query,
   getDocs,
+  arrayRemove, // Se quita arrayUnion que no se usaba
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
+import { useAuthStore } from '@/stores/auth'
+import DashboardView from '@/components/DashboardView.vue'
+
+// --- STORES ---
+const authStore = useAuthStore()
 
 // --- ESTADO REACTIVO ---
 const podcasts = ref([])
-const selectedPodcast = ref(null)
 const isLoading = ref(true)
-const isSaving = ref(false)
-const saveSuccess = ref(false)
+const activeAdminView = ref('podcasts')
+const selectedPodcastInfo = ref(null)
 const form = ref({
   id: null,
   title: '',
@@ -194,6 +281,8 @@ const form = ref({
   coverImage: '',
   host: { name: '', image: '' },
 })
+const isSaving = ref(false)
+const saveSuccess = ref(false)
 const episodes = ref([])
 const episodesLoading = ref(false)
 const isEpisodeModalOpen = ref(false)
@@ -201,111 +290,169 @@ const isSavingEpisode = ref(false)
 const newEpisodeForm = ref({ title: '', audioURL: '' })
 let unsubscribeEpisodes = null
 
+const schedule = ref({})
+const scheduleLoading = ref(true)
+const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+const selectedDayForEditing = ref('lunes')
+const newScheduleItem = ref({ time: '', podcastId: '' })
+
+const isEditingMobile = ref(false)
+
+const naturalSort = (a, b) =>
+  a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
+
 // --- CICLO DE VIDA ---
 onMounted(() => {
+  // Si el usuario es admin, la vista por defecto será el dashboard.
+  if (authStore.isAdmin) {
+    activeAdminView.value = 'dashboard'
+  }
+
   const podcastsCollection = collection(db, 'podcasts')
   onSnapshot(podcastsCollection, (querySnapshot) => {
     const fetchedPodcasts = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-    fetchedPodcasts.sort((a, b) => a.title.localeCompare(b.title))
+    fetchedPodcasts.sort(naturalSort)
     podcasts.value = fetchedPodcasts
     isLoading.value = false
+  })
+
+  const scheduleRef = doc(db, 'schedule', 'main')
+  onSnapshot(scheduleRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data()
+      // Asegura que todos los días de la semana existan en el objeto
+      weekdays.forEach((day) => {
+        if (!data[day]) {
+          data[day] = []
+        }
+      })
+      schedule.value = data
+    } else {
+      // Si no existe, crea un schedule vacío para evitar errores
+      schedule.value = weekdays.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
+    }
+    scheduleLoading.value = false
   })
 })
 
 watch(
-  selectedPodcast,
+  selectedPodcastInfo,
   (newVal) => {
+    if (!newVal) {
+      isEditingMobile.value = false
+    }
     if (unsubscribeEpisodes) unsubscribeEpisodes()
+
     if (newVal && newVal.id) {
       form.value = JSON.parse(JSON.stringify(newVal))
       episodesLoading.value = true
       const episodesCollection = collection(db, 'podcasts', newVal.id, 'episodes')
       const q = query(episodesCollection)
       unsubscribeEpisodes = onSnapshot(q, (snapshot) => {
-        const fetchedEpisodes = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        fetchedEpisodes.sort((a, b) => a.title.localeCompare(b.title))
+        let fetchedEpisodes = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        fetchedEpisodes.sort(naturalSort)
         episodes.value = fetchedEpisodes
         episodesLoading.value = false
       })
     } else {
-      resetForm()
+      form.value = {
+        id: null,
+        title: '',
+        description: '',
+        coverImage: '',
+        host: { name: '', image: '' },
+      }
       episodes.value = []
     }
   },
   { deep: true },
 )
 
-const toggleComments = async (episode) => {
-  try {
-    const episodeRef = doc(db, 'podcasts', form.value.id, 'episodes', episode.id)
-    const newStatus = !episode.commentsEnabled
-    await updateDoc(episodeRef, {
-      commentsEnabled: newStatus,
-    })
-    // onSnapshot se encargará de actualizar la UI
-  } catch (error) {
-    console.error('Error al actualizar el estado de los comentarios:', error)
-    alert('No se pudo cambiar el estado de los comentarios.')
-  }
-}
-// --- FUNCIONES ---
+// --- FUNCIONES PODCASTS ---
 const selectPodcast = (podcast) => {
-  selectedPodcast.value = podcast
-  saveSuccess.value = false
-}
-
-const resetForm = () => {
-  form.value = {
-    id: null,
-    title: '',
-    description: '',
-    coverImage: '',
-    host: { name: '', image: '' },
-  }
+  selectedPodcastInfo.value = podcast
+  isEditingMobile.value = true
 }
 
 const prepareNewPodcast = () => {
-  selectedPodcast.value = {} // Dispara el watcher para limpiar el formulario
+  selectedPodcastInfo.value = {}
+  isEditingMobile.value = true
 }
 
 const saveChanges = async () => {
-  if (!form.value.title) return alert('El título del podcast es obligatorio.')
+  if (!form.value.title) return alert('El título es obligatorio.')
   isSaving.value = true
   saveSuccess.value = false
   try {
-    const podcastData = {
-      title: form.value.title,
-      description: form.value.description,
-      coverImage: form.value.coverImage,
-      host: { name: form.value.host.name, image: form.value.host.image },
-      isActive: form.value.isActive !== undefined ? form.value.isActive : true,
-    }
+    const podcastData = { ...form.value }
+    delete podcastData.id
 
     if (form.value.id) {
-      // Editando...
-      const podcastRef = doc(db, 'podcasts', form.value.id)
-      await updateDoc(podcastRef, podcastData)
+      await updateDoc(doc(db, 'podcasts', form.value.id), podcastData)
     } else {
-      // Creando...
       const newDocRef = await addDoc(collection(db, 'podcasts'), podcastData)
-      // [MEJORADO] Se actualiza el estado local y se selecciona el nuevo podcast
-      // para permitir añadir episodios inmediatamente.
-      const newPodcast = { id: newDocRef.id, ...podcastData }
-      // onSnapshot actualizará la lista de podcasts.value, no es necesario hacer push manual.
-      selectPodcast(newPodcast)
+      selectPodcast({ id: newDocRef.id, ...podcastData })
     }
-
     saveSuccess.value = true
     setTimeout(() => (saveSuccess.value = false), 3000)
   } catch (error) {
     console.error('Error guardando podcast:', error)
-    alert('Ocurrió un error al guardar.')
+    alert('No se pudo guardar el podcast.')
   } finally {
     isSaving.value = false
   }
 }
 
-// --- Funciones para el modal de episodios ---
+const deletePodcast = async () => {
+  const podcastId = form.value.id
+  if (
+    !podcastId ||
+    !confirm(`¿Estás SEGURO de que quieres eliminar el podcast "${form.value.title}"?`)
+  )
+    return
+
+  isSaving.value = true
+  try {
+    const podcastRef = doc(db, 'podcasts', podcastId)
+    const episodesSnapshot = await getDocs(collection(podcastRef, 'episodes'))
+    const episodeIdsToDelete = episodesSnapshot.docs.map((d) => d.id)
+
+    const deletePromises = episodesSnapshot.docs.map((eDoc) => deleteDoc(eDoc.ref))
+    await Promise.all(deletePromises)
+    await deleteDoc(podcastRef)
+
+    const usersSnapshot = await getDocs(collection(db, 'users'))
+    const favoriteUpdates = usersSnapshot.docs
+      .map((userDoc) => {
+        const favs = userDoc.data().favoritos || {}
+        const updatedPodcasts = (favs.podcasts || []).filter((id) => id !== podcastId)
+        const updatedEpisodes = (favs.episodios || []).filter(
+          (ep) => !episodeIdsToDelete.includes(ep.id),
+        )
+        if (
+          updatedPodcasts.length < (favs.podcasts || []).length ||
+          updatedEpisodes.length < (favs.episodios || []).length
+        ) {
+          return updateDoc(userDoc.ref, {
+            'favoritos.podcasts': updatedPodcasts,
+            'favoritos.episodios': updatedEpisodes,
+          })
+        }
+      })
+      .filter(Boolean)
+
+    await Promise.all(favoriteUpdates)
+    alert(`El podcast "${form.value.title}" ha sido eliminado.`)
+    selectedPodcastInfo.value = null
+  } catch (error) {
+    console.error('Error eliminando podcast:', error)
+    alert('Ocurrió un error al eliminar el podcast.')
+  } finally {
+    isSaving.value = false
+  }
+}
+
+// --- FUNCIONES EPISODIOS ---
 const openNewEpisodeModal = () => {
   newEpisodeForm.value = { title: '', audioURL: '' }
   isEpisodeModalOpen.value = true
@@ -316,20 +463,20 @@ const closeNewEpisodeModal = () => {
 }
 
 const saveNewEpisode = async () => {
-  if (!newEpisodeForm.value.title || !newEpisodeForm.value.audioURL) {
+  if (!newEpisodeForm.value.title || !newEpisodeForm.value.audioURL)
     return alert('Ambos campos son obligatorios.')
-  }
   isSavingEpisode.value = true
   try {
     const episodesCollection = collection(db, 'podcasts', form.value.id, 'episodes')
     await addDoc(episodesCollection, {
       title: newEpisodeForm.value.title,
       audioURL: newEpisodeForm.value.audioURL,
+      commentsEnabled: true,
       publishedDate: serverTimestamp(),
     })
     closeNewEpisodeModal()
   } catch (error) {
-    console.error('Error al guardar el episodio:', error)
+    console.error('Error guardando episodio:', error)
     alert('Ocurrió un error al guardar el episodio.')
   } finally {
     isSavingEpisode.value = false
@@ -337,150 +484,174 @@ const saveNewEpisode = async () => {
 }
 
 const deleteEpisode = async (episodeId) => {
-  if (
-    !confirm(
-      `¿Estás seguro de que quieres eliminar este episodio? Esta acción no se puede deshacer y también lo eliminará de los favoritos de todos los usuarios.`,
-    )
-  ) {
-    return
-  }
+  if (!confirm(`¿Seguro que quieres eliminar este episodio?`)) return
   try {
-    const episodeRef = doc(db, 'podcasts', form.value.id, 'episodes', episodeId)
-    await deleteDoc(episodeRef)
-    const usersCollectionRef = collection(db, 'users')
-    const usersSnapshot = await getDocs(usersCollectionRef)
-    const updatePromises = []
-    usersSnapshot.forEach((userDoc) => {
-      const userData = userDoc.data()
-      if (userData.favoritos && Array.isArray(userData.favoritos.episodios)) {
-        const favoriteEpisodes = userData.favoritos.episodios
-        const updatedFavorites = favoriteEpisodes.filter((fav) => fav.id !== episodeId)
-        if (updatedFavorites.length < favoriteEpisodes.length) {
-          const userDocRef = doc(db, 'users', userDoc.id)
-          updatePromises.push(updateDoc(userDocRef, { 'favoritos.episodios': updatedFavorites }))
+    await deleteDoc(doc(db, 'podcasts', form.value.id, 'episodes', episodeId))
+
+    const usersSnapshot = await getDocs(collection(db, 'users'))
+    const favoriteUpdates = usersSnapshot.docs
+      .map((userDoc) => {
+        const userFavorites = userDoc.data().favoritos?.episodios
+        if (!Array.isArray(userFavorites) || userFavorites.length === 0) return
+        const originalLength = userFavorites.length
+        let updatedFavorites
+        if (typeof userFavorites[0] === 'string') {
+          updatedFavorites = userFavorites.filter((id) => id !== episodeId)
+        } else if (typeof userFavorites[0] === 'object' && userFavorites[0] !== null) {
+          updatedFavorites = userFavorites.filter((fav) => fav.id !== episodeId)
+        } else {
+          updatedFavorites = userFavorites
         }
-      }
-    })
-    await Promise.all(updatePromises)
+        if (updatedFavorites.length < originalLength) {
+          return updateDoc(userDoc.ref, { 'favoritos.episodios': updatedFavorites })
+        }
+      })
+      .filter(Boolean)
+
+    await Promise.all(favoriteUpdates)
   } catch (error) {
-    console.error('Error al eliminar el episodio y limpiar favoritos:', error)
-    alert('Ocurrió un error durante la eliminación.')
+    console.error('Error eliminando episodio:', error)
+    alert('Ocurrió un error al eliminar el episodio.')
   }
 }
 
-const deletePodcast = async () => {
-  const podcastId = form.value.id
-  if (!podcastId) return
+const toggleComments = async (episode) => {
+  try {
+    await updateDoc(doc(db, 'podcasts', form.value.id, 'episodes', episode.id), {
+      commentsEnabled: !episode.commentsEnabled,
+    })
+  } catch (error) {
+    console.error('Error actualizando comentarios:', error)
+  }
+}
 
-  if (
-    !confirm(
-      `¿Estás SEGURO de que quieres eliminar el podcast "${form.value.title}"?\n\n¡Esta acción es PERMANENTE y eliminará todos sus episodios y los favoritos asociados de todos los usuarios!`,
-    )
-  ) {
-    return
+// --- FUNCIONES CRONOGRAMA ---
+const formatTime = (timeStr) => {
+  if (!timeStr) return ''
+  const [hours, minutes] = timeStr.split(':')
+  const date = new Date()
+  date.setHours(hours, minutes, 0)
+  return date.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+const addScheduleItem = async () => {
+  const day = selectedDayForEditing.value
+  if (!newScheduleItem.value.time || !newScheduleItem.value.podcastId) return
+
+  const selectedP = podcasts.value.find((p) => p.id === newScheduleItem.value.podcastId)
+  if (!selectedP) return
+
+  const newItem = {
+    time: newScheduleItem.value.time,
+    programTitle: selectedP.title,
+    podcastId: selectedP.id,
+    hostName: selectedP.host.name,
   }
 
+  const scheduleRef = doc(db, 'schedule', 'main')
+  const currentDaySchedule = schedule.value[day] || []
+  const updatedSchedule = [...currentDaySchedule, newItem].sort((a, b) =>
+    a.time.localeCompare(b.time),
+  )
+
   try {
-    isSaving.value = true
-    const podcastRef = doc(db, 'podcasts', podcastId)
-    const episodesRef = collection(podcastRef, 'episodes')
-    const episodesSnapshot = await getDocs(episodesRef)
-
-    const deleteEpisodePromises = []
-    episodesSnapshot.forEach((episodeDoc) => {
-      deleteEpisodePromises.push(deleteDoc(episodeDoc.ref))
-    })
-    await Promise.all(deleteEpisodePromises)
-
-    await deleteDoc(podcastRef)
-
-    const usersRef = collection(db, 'users')
-    const usersSnapshot = await getDocs(usersRef)
-    const updateFavoritesPromises = []
-    const episodeIdsToDelete = episodesSnapshot.docs.map((d) => d.id)
-
-    usersSnapshot.forEach((userDoc) => {
-      const userData = userDoc.data()
-      const userFavorites = userData.favoritos || {}
-      let needsUpdate = false
-
-      const favoritePodcasts = (userFavorites.podcasts || []).filter((id) => id !== podcastId)
-      if (favoritePodcasts.length < (userFavorites.podcasts || []).length) {
-        needsUpdate = true
-      }
-
-      const favoriteEpisodes = (userFavorites.episodios || []).filter(
-        (ep) => !episodeIdsToDelete.includes(ep.id),
-      )
-      if (favoriteEpisodes.length < (userFavorites.episodios || []).length) {
-        needsUpdate = true
-      }
-
-      if (needsUpdate) {
-        updateFavoritesPromises.push(
-          updateDoc(userDoc.ref, {
-            'favoritos.podcasts': favoritePodcasts,
-            'favoritos.episodios': favoriteEpisodes,
-          }),
-        )
-      }
-    })
-    await Promise.all(updateFavoritesPromises)
-
-    alert(`El podcast "${form.value.title}" ha sido eliminado exitosamente.`)
-    selectedPodcast.value = null
+    await updateDoc(scheduleRef, { [day]: updatedSchedule })
+    newScheduleItem.value = { time: '', podcastId: '' }
   } catch (error) {
-    console.error('Error al eliminar el podcast:', error)
-    alert('Ocurrió un error al eliminar el podcast. Revisa la consola.')
-  } finally {
-    isSaving.value = false
+    console.error('Error añadiendo al cronograma:', error)
+    alert('No se pudo añadir el programa.')
+  }
+}
+
+const removeScheduleItem = async (day, itemToRemove) => {
+  if (!confirm(`¿Seguro que quieres eliminar "${itemToRemove.programTitle}" del cronograma?`))
+    return
+  try {
+    const scheduleRef = doc(db, 'schedule', 'main')
+    await updateDoc(scheduleRef, { [day]: arrayRemove(itemToRemove) })
+  } catch (error) {
+    console.error('Error eliminando del cronograma:', error)
+    alert('No se pudo eliminar el programa.')
   }
 }
 </script>
 
 <style scoped>
-/* Tus estilos existentes... */
+/* Estilos unificados y consistentes */
 .admin-panel {
   padding: 2rem;
   background-color: #f4f6f8;
-  height: calc(100vh - 70px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 .panel-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   border-bottom: 1px solid #e0e0e0;
   padding-bottom: 1rem;
+  flex-shrink: 0;
 }
 .panel-header h1 {
   font-size: 2rem;
   margin: 0;
   color: #333;
 }
-.panel-header p {
-  margin: 0.25rem 0 0;
-  color: #666;
+.admin-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
 }
-.panel-layout {
+.admin-tabs button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #555;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+.admin-tabs button:hover {
+  color: #0d4d98;
+}
+.admin-tabs button.active {
+  color: #0d4d98;
+  border-bottom-color: #0d4d98;
+}
+
+.panel-layout,
+.schedule-manager-layout {
   display: flex;
   gap: 2rem;
-  height: calc(100% - 110px);
+  height: 100%;
+  overflow: hidden; /* Evita el scroll del contenedor principal */
 }
 .list-column,
-.form-column {
+.form-column,
+.day-tabs,
+.schedule-content {
   background-color: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  padding: 1.5rem;
-  overflow-y: auto;
+  overflow-y: auto; /* El scroll está en cada columna */
+  height: 100%;
 }
-.list-column {
+.list-column,
+.day-tabs {
   flex: 0 0 300px;
+  padding: 0.5rem;
+}
+.form-column,
+.schedule-content {
+  flex-grow: 1;
+  padding: 1.5rem;
 }
 .list-header {
+  padding: 1rem 1rem 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
 }
 .list-header h2 {
   margin: 0;
@@ -498,6 +669,10 @@ const deletePodcast = async () => {
   align-items: center;
   justify-content: center;
   line-height: 1;
+}
+.plus {
+  width: 25px;
+  height: 25px;
 }
 .podcast-list {
   list-style: none;
@@ -518,9 +693,6 @@ const deletePodcast = async () => {
   background-color: #0075ffa8;
   color: white;
   font-weight: bold;
-}
-.form-column {
-  flex-grow: 1;
 }
 .form-placeholder {
   display: flex;
@@ -552,12 +724,14 @@ const deletePodcast = async () => {
   color: #555;
 }
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.add-schedule-form input,
+.add-schedule-form select {
   padding: 0.75rem;
   border: 1px solid #ccc;
   border-radius: 6px;
   font-size: 1rem;
-  transition: border-color 0.2s;
+  font-family: inherit;
 }
 .form-group input:focus,
 .form-group textarea:focus {
@@ -569,9 +743,12 @@ const deletePodcast = async () => {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap;
 }
-.save-btn {
-  background-color: #28a745;
+.save-btn,
+.delete-podcast-btn,
+.cancel-btn,
+.add-episode-btn {
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
@@ -581,38 +758,36 @@ const deletePodcast = async () => {
   cursor: pointer;
   transition: background-color 0.2s;
 }
+.save-btn {
+  background-color: #28a745;
+}
 .save-btn:hover {
   background-color: #218838;
 }
-.save-btn:disabled {
+.save-btn:disabled,
+.add-episode-btn:disabled {
   background-color: #aaa;
   cursor: not-allowed;
 }
 .delete-podcast-btn {
   background-color: #dc3545;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.2s;
 }
 .delete-podcast-btn:hover {
   background-color: #c82333;
 }
-.save-success-message {
-  color: #28a745;
-  font-weight: bold;
+.cancel-btn {
+  background-color: #6c757d;
 }
-hr {
-  border: none;
-  border-top: 1px solid #e0e0e0;
-  margin: 2rem 0;
+.add-episode-btn {
+  padding: 0.5rem 1rem;
+  background-color: #007bff;
 }
+
+/* --- ESTILOS COMPLETOS PARA LA SECCIÓN DE EPISODIOS --- */
 .episodes-section {
-  margin-top: 2rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
 }
 .episodes-header {
   display: flex;
@@ -620,44 +795,98 @@ hr {
   align-items: center;
   margin-bottom: 1rem;
 }
-.add-episode-btn {
-  background-color: #007bff;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-}
-.add-episode-btn:disabled {
-  background-color: #aaa;
-  cursor: not-allowed;
+.episodes-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
 }
 .episode-list {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 .episode-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem;
-  border-bottom: 1px solid #eee;
+  padding: 0.75rem 0.25rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.episode-item:last-child {
+  border-bottom: none;
 }
 .episode-title {
   flex-grow: 1;
+  padding-right: 1rem;
+}
+.episode-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
 }
 .delete-episode-btn {
   background: none;
   border: none;
   color: #dc3545;
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 0;
+  line-height: 1;
+}
+.delete-episode-btn svg {
+  display: block;
+}
+.comment-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: #ccc;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  border: none;
+  padding: 0;
+}
+.comment-toggle.active {
+  background-color: #28a745;
+}
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: white;
   border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease;
 }
-.delete-episode-btn:hover {
-  background-color: #fbebee;
+.comment-toggle.active .toggle-knob {
+  transform: translateX(20px);
 }
+.loading-indicator,
+.loading-indicator-small {
+  padding: 1rem;
+  text-align: center;
+  color: #888;
+}
+
+/* --- ESTILO PARA EL BOTÓN DE VOLVER (RESPONSIVE) --- */
+.back-to-list-btn {
+  display: none;
+  background: none;
+  border: 1px solid #ccc;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+.back-to-list-btn:hover {
+  background-color: #f0f0f0;
+}
+
+/* --- ESTILOS COMPLETOS PARA EL MODAL DE AÑADIR EPISODIO --- */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -671,81 +900,243 @@ hr {
   z-index: 1000;
 }
 .modal-content {
-  background-color: white;
+  background: #ffffff;
   padding: 2rem;
   border-radius: 8px;
-  width: 100%;
-  max-width: 500px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 500px;
 }
 .modal-content h3 {
   margin-top: 0;
+  margin-bottom: 2rem;
+  font-size: 1.5rem;
+  color: #333;
+}
+.modal-content .form-group {
+  margin-bottom: 1.5rem;
+}
+.modal-content .form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #555;
+}
+.modal-content input[type='text'],
+.modal-content input[type='url'] {
+  width: 100%;
+  box-sizing: border-box;
 }
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
-  margin-top: 1.5rem;
+  margin-top: 2rem;
 }
-.cancel-btn {
+.modal-actions .cancel-btn {
   background-color: #6c757d;
-  color: white;
+}
+.modal-actions .cancel-btn:hover {
+  background-color: #5a6268;
+}
+.modal-actions .save-btn {
+  background-color: #28a745;
+}
+.modal-actions .save-btn:hover {
+  background-color: #218838;
+}
+
+/* --- ESTILOS COMPLETOS PARA EL GESTOR DE CRONOGRAMA --- */
+.schedule-manager-layout {
+  padding: 0;
+}
+.day-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-right: 1px solid #e0e0e0;
+  padding: 1rem 0.5rem;
+}
+.day-tab-item {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  background: none;
   border: none;
-  padding: 0.75rem 1.5rem;
   border-radius: 6px;
   cursor: pointer;
+  transition: all 0.2s;
+  color: #333;
 }
-.text-muted {
-  color: #6c757d !important;
+.day-tab-item.active {
+  background-color: #0075ffa8;
+  color: white;
 }
-.episode-actions {
+.schedule-content {
+  display: flex;
+  flex-direction: column;
+}
+.schedule-list-admin {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex-grow: 1;
+}
+.schedule-item-admin {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.item-info-admin {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
+  flex-grow: 1;
 }
-
-.comment-toggle {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  border-radius: 12px;
-  background-color: #ccc;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.2s ease-in-out;
+.item-time {
+  font-weight: bold;
+  font-size: 0.9em;
+  color: #0d4d98;
+  flex-shrink: 0;
 }
-
-.comment-toggle.active {
-  background-color: #28a745; /* Verde */
+.item-details {
+  display: flex;
+  flex-direction: column;
 }
-
-.toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  background-color: white;
-  border-radius: 50%;
-  transition: transform 0.2s ease-in-out;
+.item-title {
+  font-weight: 600;
 }
-
-.comment-toggle.active .toggle-knob {
-  transform: translateX(20px);
+.item-host {
+  font-size: 0.8rem;
+  color: #6c757d;
 }
-
-.delete-episode-btn {
+.delete-schedule-item {
   background: none;
   border: none;
   color: #dc3545;
+  font-size: 1.5rem;
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 50%;
+  line-height: 1;
+  padding: 0.25rem;
+}
+.add-schedule-form {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+.add-schedule-form h4 {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+.add-schedule-btn {
+  background-color: #28a745;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.delete-episode-btn:hover {
-  background-color: #fbebee;
+
+/* === MEDIA QUERIES PARA RESPONSIVIDAD === */
+@media (max-width: 992px) {
+  .admin-panel {
+    overflow-y: auto;
+    padding: 1rem;
+    height: auto;
+  }
+
+  /* LÓGICA DE "MODAL" PARA GESTIÓN DE PODCASTS */
+  .panel-layout {
+    height: auto;
+    overflow: visible;
+    gap: 1rem;
+  }
+  .panel-layout .form-column {
+    display: none;
+  }
+  .panel-layout .list-column {
+    flex-basis: 100%;
+    width: 100%;
+  }
+  .panel-layout.is-editing-mobile .list-column {
+    display: none;
+  }
+  .panel-layout.is-editing-mobile .form-column {
+    display: block;
+    flex-basis: 100%;
+    width: 100%;
+  }
+  .back-to-list-btn {
+    display: inline-block;
+  }
+
+  /* Estilos responsivos para gestor de cronograma */
+  .schedule-manager-layout {
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+    gap: 1rem;
+  }
+  .day-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 0.5rem;
+    flex: unset;
+  }
+  .day-tab-item {
+    white-space: nowrap;
+  }
+
+  .list-column,
+  .form-column,
+  .day-tabs,
+  .schedule-content {
+    overflow-y: visible;
+    height: auto;
+    flex-basis: auto !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-panel {
+    padding: 0.5rem;
+  }
+  .form-column,
+  .schedule-content {
+    padding: 1rem;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .panel-header h1 {
+    font-size: 1.5rem;
+  }
+  .admin-tabs button {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .form-actions button {
+    width: 100%;
+  }
+  .add-schedule-form {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

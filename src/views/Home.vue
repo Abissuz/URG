@@ -19,12 +19,10 @@
         </div>
       </div>
     </div>
-    <div class="cronograma-container">
-      <!-- Cabecera -->
+    <!-- <div class="cronograma-container">
       <div class="cronograma-header">
         <h2>Cronograma</h2>
       </div>
-      <!-- Lista de canciones -->
       <div class="music-table">
         <div v-for="i in 12" :key="i" class="track">
           <img :src="logoUrl" class="track-cover" alt="Album" />
@@ -35,7 +33,8 @@
           </div>
         </div>
       </div>
-    </div>
+    </div> -->
+    <ScheduleWidget />
   </div>
 
   <VideoPreview />
@@ -46,6 +45,7 @@
 import logoUrl from '@/assets/img/logo-urg.png' // Importación correcta de la imagen
 import VideoPreview from '@/components/VideoPreview.vue'
 import PodcastPreview from '@/components/PodcastPreview.vue'
+import ScheduleWidget from '@/components/ScheduleWidget.vue'
 </script>
 
 <style scoped>
@@ -223,6 +223,7 @@ import PodcastPreview from '@/components/PodcastPreview.vue'
   border: 1px solid #0d4d98;
   border-radius: 10px;
   overflow: hidden;
+  overflow-y: auto;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   font-family: 'Sulphur Point', sans-serif; /* Aplicado globalmente */
 }
@@ -308,14 +309,6 @@ import PodcastPreview from '@/components/PodcastPreview.vue'
 .music-table::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
-/* @media screen and (max-width: 1041px) {
-  .main {
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    margin-top: 60px;
-  }
-} */
 @media screen and (max-width: 812px) {
   .main {
     flex-direction: column;

@@ -1,0 +1,55 @@
+📂 .vscode
+    📄 extensions.json
+    📄 settings.json
+📂 e2e
+    📄 vue.spec.js
+📂 functions
+    📄 index.js
+    📄 package-lock.json
+    📄 package.json
+📂 public
+    📄 favicon.ico
+📂 src
+    📂 assets
+        📂 img
+    📂 components
+        📄 BottomPlayer.vue
+        📄 DashboardView.vue
+        📄 Footer.vue
+        📄 PodcastGrid.vue
+        📄 PodcastPreview.vue
+        📄 ScheduleWidget.vue
+        📄 VideoPreview.vue
+    📂 firebase
+        📄 config.js
+    📂 router
+        📄 index.js
+    📂 stores
+        📄 auth.js
+        📄 counter.js
+        📄 favorites.js
+        📄 player.js
+    📂 views
+        📄 FavoritesView.vue
+        📄 Home.vue
+        📄 LoginView.vue
+        📄 Nosotros.vue
+        📄 PodcastDetail.vue
+        📄 Programas.vue
+        📄 UpdateContentView.vue
+    📄 App.vue
+    📄 main.js
+📄 .editorconfig
+📄 .env
+📄 .firebaserc
+📄 .prettierrc.json
+📄 eslint.config.js
+📄 estructura.txt
+📄 firebase.json
+📄 index.html
+📄 jsconfig.json
+📄 package-lock.json
+📄 package.json
+📄 playwright.config.js
+📄 README.md
+📄 vite.config.js

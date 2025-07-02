@@ -1,6 +1,9 @@
+// src/router/index.js - VERSIÓN FINAL CORREGIDA
+
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth' // Se importa el store de autenticación
-import HomeView from '../views/Home.vue'
+import { useAuthStore } from '@/stores/auth'
+import HomeView from '@/views/Home.vue'
+import UpdateContentView from '@/views/UpdateContentView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -13,69 +16,78 @@ const router = createRouter({
     {
       path: '/programas',
       name: 'programas',
-      component: () => import('../views/Programas.vue'),
+      component: () => import('@/views/Programas.vue'),
     },
     {
       path: '/nosotros',
       name: 'nosotros',
-      component: () => import('../views/Nosotros.vue'),
+      component: () => import('@/views/Nosotros.vue'),
     },
     {
       path: '/login',
       name: 'login',
-      component: () => import('../views/LoginView.vue'),
+      component: () => import('@/views/LoginView.vue'),
       meta: { oculto: true },
     },
-    // [NUEVO] Se añade la ruta para la vista de detalle del podcast
     {
-      path: '/podcast/:id', // Define la ruta dinámica
+      path: '/podcast/:id',
       name: 'podcast-detail',
-      component: () => import('../views/PodcastDetail.vue'),
-      // Esta ruta es pública, por lo que no necesita meta-información de seguridad
+      component: () => import('@/views/PodcastDetail.vue'),
     },
     {
       path: '/favoritos',
       name: 'favoritos',
-      component: () => import('../views/FavoritesView.vue'),
+      component: () => import('@/views/FavoritesView.vue'),
       meta: { requiresAuth: true },
     },
     {
       path: '/actualizar-contenido',
       name: 'actualizar-contenido',
-      component: () => import('../views/UpdateContentView.vue'),
-      meta: { requiresAdmin: true },
+      component: UpdateContentView,
+      meta: { requiresAuth: true, requiredRole: ['admin', 'moderador'] },
     },
   ],
 })
 
-// [EL PORTERO] Este código se ejecuta ANTES de cada cambio de ruta.
+// [EL PORTERO MEJORADO Y CORREGIDO]
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-
-  // Se espera a que la comprobación inicial de Firebase termine
   await authStore.waitForAuthInit()
 
   const isLoggedIn = authStore.isLoggedIn
-  const canUpdateContent = authStore.canUpdateContent
 
-  // REGLA 2: ¿La ruta requiere ser admin?
-  if (to.meta.requiresAdmin) {
-    if (isLoggedIn && canUpdateContent) {
-      next() // El usuario es admin, puede pasar.
+  // --- [LA CORRECCIÓN ESTÁ AQUÍ] ---
+  // Se usa 'userRole' (con R mayúscula) para que coincida con el store.
+  const userRole = authStore.userRole
+
+  // REGLA #1: La ruta requiere un ROL específico (o varios)?
+  if (to.meta.requiredRole) {
+    if (!isLoggedIn) {
+      next('/login')
     } else {
-      console.warn('Acceso denegado: Se requieren permisos de administrador.')
-      next('/')
+      const allowedRoles = Array.isArray(to.meta.requiredRole)
+        ? to.meta.requiredRole
+        : [to.meta.requiredRole]
+
+      if (allowedRoles.includes(userRole)) {
+        next() // ¡Sí está! Puede pasar.
+      } else {
+        console.warn(
+          `Acceso denegado a '${to.path}'. Se requiere uno de los siguientes roles: [${allowedRoles.join(', ')}]. El usuario tiene el rol '${userRole}'.`,
+        )
+        next('/')
+      }
     }
-    // REGLA 1: ¿La ruta requiere solo iniciar sesión?
+    // REGLA #2: La ruta solo requiere estar LOGUEADO?
   } else if (to.meta.requiresAuth) {
     if (isLoggedIn) {
-      next() // El usuario ha iniciado sesión, puede pasar.
+      next()
     } else {
-      console.warn('Acceso denegado: Se requiere iniciar sesión.')
+      console.warn(`Acceso denegado a '${to.path}'. Se requiere iniciar sesión.`)
       next('/login')
     }
   } else {
-    // Si la ruta no tiene ninguna regla especial, todos pueden pasar.
+    // Si la ruta no tiene reglas, todos pueden pasar.
     next()
   }
 })

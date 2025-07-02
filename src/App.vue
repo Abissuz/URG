@@ -88,7 +88,7 @@
 
     <div v-if="isMobileMenuOpen" class="mobile-overlay" @click="toggleMobileMenu"></div>
 
-    <div class="main-content-wrapper">
+    <div class="main-content-wrapper" ref="mainContentRef">
       <header class="main-header">
         <div class="header-grid">
           <div class="header-left">
@@ -204,9 +204,13 @@
   </div>
 </template>
 
+// DENTRO DE App.vue
+
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { RouterView } from 'vue-router'
+// 1. Añade 'watch' a la importación de vue y 'useRoute' a la de vue-router
+import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
+import { RouterView, useRouter, useRoute } from 'vue-router' // <--- AÑADE useRoute
+
 import { usePlayerStore } from './stores/player.js'
 import { useAuthStore } from './stores/auth.js'
 import { usePodcastStore } from './stores/counter.js'
@@ -214,13 +218,37 @@ import { usePodcastStore } from './stores/counter.js'
 import Footer from './components/Footer.vue'
 import BottomPlayer from './components/BottomPlayer.vue'
 
+const router = useRouter()
+const route = useRoute() // <--- 2. Obtén acceso a la ruta actual
+
+// Tu código para la función de scroll (sin cambios)
+const mainContentRef = ref(null)
+const scrollTop = () => {
+  mainContentRef.value?.scrollTo({
+    top: 0,
+    behavior: 'smooth',
+  })
+}
+provide('scrollTop', scrollTop)
+
+// --- [NUEVA LÓGICA] El vigilante del scroll ---
+// 3. Este 'watch' observa la URL de la página (route.path)
+watch(
+  () => route.path,
+  () => {
+    // En cuanto la URL cambia, ejecuta nuestra función scrollTop
+    scrollTop()
+  },
+)
+// ---------------------------------------------
+
+// --- El resto de tu script se mantiene exactamente igual ---
 const playerStore = usePlayerStore()
 const authStore = useAuthStore()
 const podcastStore = usePodcastStore()
 
 const audioTag = ref(null)
 const userMenuRef = ref(null)
-
 const isMobileMenuOpen = ref(false)
 const showDropdown = ref(false)
 
@@ -238,14 +266,14 @@ const handleClickOutside = (event) => {
     showDropdown.value = false
   }
 }
-const cerrarSesion = () => {
+const cerrarSesion = async () => {
   showDropdown.value = false
-  authStore.logout()
+  await authStore.logout()
+  router.push('/')
 }
 
 onMounted(() => {
   playerStore.init(audioTag.value)
-  authStore.fetchUser()
   podcastStore.initialize()
   document.addEventListener('click', handleClickOutside)
 })

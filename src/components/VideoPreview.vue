@@ -27,7 +27,9 @@
         class="text-decoration-none"
       >
         <div class="video-card">
-          <img :src="video.thumbnail" class="video-thumbnail" :alt="video.title" />
+          <div class="thumbnail-wrapper">
+            <img :src="video.thumbnail" class="video-thumbnail" :alt="video.title" />
+          </div>
           <div class="video-info">
             <h6 class="video-title">{{ video.title }}</h6>
           </div>
@@ -82,7 +84,45 @@ onMounted(fetchLatestVideos)
 .video-preview-container {
   font-family: 'Sulphur Point', sans-serif;
 }
+/* Contenedor para la imagen y el ícono */
+.thumbnail-wrapper {
+  position: relative; /* Clave para posicionar el ícono de play encima */
+  display: block;
+}
 
+/* El ícono de 'Play' (usando un pseudo-elemento ::after) */
+.thumbnail-wrapper::after {
+  content: ''; /* Requerido para que se muestre el pseudo-elemento */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* Centrado perfecto */
+
+  /* Apariencia del ícono */
+  width: 60px;
+  height: 60px;
+  background-color: rgba(0, 0, 0, 0.5);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M8 5v14l11-7z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 50%;
+  border-radius: 50%;
+
+  /* Transición suave */
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease;
+
+  /* El ícono está presente pero es sutil */
+  opacity: 0.8;
+}
+
+/* Efecto al pasar el cursor sobre la tarjeta de video */
+.video-card:hover .thumbnail-wrapper::after {
+  transform: translate(-50%, -50%) scale(1.1); /* Se agranda un poco */
+  background-color: rgb(251 136 0 / 65%);
+  opacity: 1;
+}
 .section-header {
   display: flex;
   justify-content: space-between;

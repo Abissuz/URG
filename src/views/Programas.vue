@@ -46,7 +46,9 @@
             class="text-decoration-none"
           >
             <div class="card h-100 shadow-sm video-card">
-              <img :src="video.thumbnail" class="card-img-top" :alt="video.title" />
+              <div class="thumbnail-wrapper">
+                <img :src="video.thumbnail" class="card-img-top" :alt="video.title" />
+              </div>
               <div class="card-body">
                 <h5 class="card-title text-primary">{{ video.title }}</h5>
               </div>
@@ -90,14 +92,15 @@
 </template>
 
 <script setup>
-// [MODIFICADO] Se añade 'watch' para la reactividad
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, inject } from 'vue' // <-- 1. Importa 'inject'
 import { useRoute } from 'vue-router'
 import PodcastGrid from '@/components/PodcastGrid.vue'
 
-const route = useRoute()
+// 2. "Pide prestada" la función que App.vue está ofreciendo
+const scrollTop = inject('scrollTop')
 
-// --- ESTADO GENERAL DE LA VISTA ---
+// --- El resto de tu script se mantiene igual ---
+const route = useRoute()
 const activeView = ref('videos')
 const searchQuery = ref('')
 
@@ -106,7 +109,6 @@ const setActiveView = (view) => {
   searchQuery.value = ''
 }
 
-// [NUEVO] Función centralizada para leer la URL
 const setViewFromQuery = (query) => {
   if (query.view === 'podcasts') {
     activeView.value = 'podcasts'
@@ -115,7 +117,6 @@ const setViewFromQuery = (query) => {
   }
 }
 
-// [NUEVO] Observador que reacciona a los cambios en la URL
 watch(
   () => route.query,
   (newQuery) => {
@@ -123,27 +124,32 @@ watch(
   },
 )
 
-// --- LÓGICA PARA VIDEOS DE YOUTUBE (sin cambios) ---
+// --- LÓGICA PARA VIDEOS DE YOUTUBE ---
 const API_KEY = import.meta.env.VITE_APP_YOUTUBE_API_KEY
 const CHANNEL_ID = import.meta.env.VITE_APP_YOUTUBE_CHANNEL_ID
 const UPLOADS_PLAYLIST_ID = CHANNEL_ID ? `UU${CHANNEL_ID.substring(2)}` : null
 const VIDEOS_PER_PAGE = 9
+
 const allVideos = ref([])
 const videoLoading = ref(true)
 const videoError = ref(null)
 const videoCurrentPage = ref(1)
+
 const filteredVideos = computed(() => {
   if (!searchQuery.value.trim()) return allVideos.value
   const query = searchQuery.value.toLowerCase()
   if (videoCurrentPage.value !== 1) videoCurrentPage.value = 1
   return allVideos.value.filter((video) => video.title.toLowerCase().includes(query))
 })
+
 const videoTotalPages = computed(() => Math.ceil(filteredVideos.value.length / VIDEOS_PER_PAGE))
+
 const paginatedVideos = computed(() => {
   const start = (videoCurrentPage.value - 1) * VIDEOS_PER_PAGE
   const end = start + VIDEOS_PER_PAGE
   return filteredVideos.value.slice(start, end)
 })
+
 const videoPages = computed(() => {
   const pages = []
   if (videoTotalPages.value <= 7) {
@@ -172,12 +178,14 @@ const videoPages = computed(() => {
   }
   return pages
 })
+
 const formatDate = (dateString) =>
   new Date(dateString).toLocaleDateString('es-ES', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   })
+
 const fetchAllVideos = async () => {
   videoLoading.value = true
   videoError.value = null
@@ -209,13 +217,20 @@ const fetchAllVideos = async () => {
     videoLoading.value = false
   }
 }
+
 const goToVideoPage = (page) => {
-  if (page >= 1 && page <= videoTotalPages.value) videoCurrentPage.value = page
+  if (page >= 1 && page <= videoTotalPages.value) {
+    videoCurrentPage.value = page
+
+    // 3. Usa la función inyectada. ¡Ahora funcionará!
+    if (scrollTop) {
+      scrollTop()
+    }
+  }
 }
 
 // --- INICIALIZACIÓN ---
 onMounted(() => {
-  // [MODIFICADO] Se llama a la nueva función para la carga inicial
   setViewFromQuery(route.query)
   fetchAllVideos()
 })
@@ -223,6 +238,45 @@ onMounted(() => {
 
 <style scoped>
 /* Tus estilos no necesitan cambios */
+/* Contenedor para la imagen y el ícono */
+.thumbnail-wrapper {
+  position: relative; /* Clave para posicionar el ícono de play encima */
+  display: block;
+}
+
+/* El ícono de 'Play' (usando un pseudo-elemento ::after) */
+.thumbnail-wrapper::after {
+  content: ''; /* Requerido para que se muestre el pseudo-elemento */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* Centrado perfecto */
+
+  /* Apariencia del ícono */
+  width: 60px;
+  height: 60px;
+  background-color: rgba(0, 0, 0, 0.5);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M8 5v14l11-7z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 50%;
+  border-radius: 50%;
+
+  /* Transición suave */
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease;
+
+  /* El ícono está presente pero es sutil */
+  opacity: 0.8;
+}
+
+/* Efecto al pasar el cursor sobre la tarjeta de video */
+.video-card:hover .thumbnail-wrapper::after {
+  transform: translate(-50%, -50%) scale(1.1); /* Se agranda un poco */
+  background-color: rgb(251 136 0 / 65%);
+  opacity: 1;
+}
 .view-toggle-container {
   display: flex;
   justify-content: center;

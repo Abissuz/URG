@@ -10,7 +10,17 @@
         </div>
         <div class="col-md-8">
           <h1 class="display-5 fw-bold text-primary">{{ podcast.title }}</h1>
-          <p class="lead">{{ podcast.host.name }}</p>
+
+          <div class="host-info d-flex align-items-center my-3">
+            <img
+              v-if="podcast.host && podcast.host.image"
+              :src="podcast.host.image"
+              alt="Foto del host"
+              class="host-avatar"
+            />
+            <p class="lead mb-0 ms-3">{{ podcast.host.name }}</p>
+          </div>
+
           <hr />
           <p>{{ podcast.description }}</p>
         </div>
@@ -372,6 +382,13 @@ onUnmounted(() => {
 .btn-favorite .is-favorite {
   color: #ff4d6d;
   animation: bounce 0.3s ease;
+}
+.host-avatar {
+  width: 60px; /* Ancho del avatar */
+  height: 60px; /* Alto del avatar */
+  border-radius: 50%; /* Esto lo hace perfectamente redondo */
+  object-fit: cover; /* Evita que la imagen se estire o se deforme */
+  border: 3px solid #0d4d98; /* Un borde con el color primario de tu app */
 }
 @keyframes bounce {
   0% {
