@@ -57,6 +57,8 @@
                   ></path>
                 </svg>
                 <span>Actualizar Contenido</span>
+
+                <span v-if="authStore.hasNewSongRequest" class="notification-dot"></span>
               </router-link>
             </li>
             <li>
@@ -204,49 +206,73 @@
   </div>
 </template>
 
-// DENTRO DE App.vue
-
 <script setup>
-// 1. Añade 'watch' a la importación de vue y 'useRoute' a la de vue-router
+// --- Importaciones ---
 import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
-import { RouterView, useRouter, useRoute } from 'vue-router' // <--- AÑADE useRoute
-
+import { RouterView, useRouter, useRoute } from 'vue-router'
 import { usePlayerStore } from './stores/player.js'
 import { useAuthStore } from './stores/auth.js'
 import { usePodcastStore } from './stores/counter.js'
+import { collection, query, onSnapshot, where } from 'firebase/firestore'
+import { db } from '@/firebase/config'
 
 import Footer from './components/Footer.vue'
 import BottomPlayer from './components/BottomPlayer.vue'
 
+// --- Inicialización de Stores y Router ---
 const router = useRouter()
-const route = useRoute() // <--- 2. Obtén acceso a la ruta actual
-
-// Tu código para la función de scroll (sin cambios)
-const mainContentRef = ref(null)
-const scrollTop = () => {
-  mainContentRef.value?.scrollTo({
-    top: 0,
-    behavior: 'smooth',
-  })
-}
-provide('scrollTop', scrollTop)
-
-// --- [NUEVA LÓGICA] El vigilante del scroll ---
-// 3. Este 'watch' observa la URL de la página (route.path)
-watch(
-  () => route.path,
-  () => {
-    // En cuanto la URL cambia, ejecuta nuestra función scrollTop
-    scrollTop()
-  },
-)
-// ---------------------------------------------
-
-// --- El resto de tu script se mantiene exactamente igual ---
+const route = useRoute()
 const playerStore = usePlayerStore()
 const authStore = useAuthStore()
 const podcastStore = usePodcastStore()
 
+// --- Lógica de Scroll ---
+const mainContentRef = ref(null)
+const scrollTop = () => {
+  mainContentRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
+}
+provide('scrollTop', scrollTop)
+watch(
+  () => route.path,
+  () => {
+    scrollTop()
+  },
+)
+
+// --- [LÓGICA DE NOTIFICACIONES CORREGIDA Y SIMPLIFICADA] ---
+let unsubscribeRequests = null
+
+// Este "vigilante" ahora observa directamente el ROL del usuario.
+watch(
+  () => authStore.userRole,
+  (newRole) => {
+    const isStaff = newRole === 'admin' || newRole === 'moderador'
+
+    // Si el usuario AHORA es staff y no estábamos escuchando...
+    if (isStaff && !unsubscribeRequests) {
+      console.log(`Usuario es ${newRole}. Iniciando listener de peticiones...`)
+
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      const q = query(collection(db, 'song_requests'), where('timestamp', '>=', twentyFourHoursAgo))
+
+      unsubscribeRequests = onSnapshot(q, (snapshot) => {
+        const currentRequestCount = authStore.songRequests.length
+        if (snapshot.docs.length > currentRequestCount && currentRequestCount > 0) {
+          authStore.setHasNewSongRequest(true)
+        }
+        authStore.songRequests = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      })
+    }
+    // Si el usuario AHORA NO es staff y SÍ estábamos escuchando...
+    else if (!isStaff && unsubscribeRequests) {
+      console.log('Usuario ya no es Staff. Deteniendo listener de peticiones.')
+      unsubscribeRequests()
+      unsubscribeRequests = null
+    }
+  },
+)
+
+// --- Lógica del Componente (sin cambios) ---
 const audioTag = ref(null)
 const userMenuRef = ref(null)
 const isMobileMenuOpen = ref(false)
@@ -280,6 +306,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  if (unsubscribeRequests) unsubscribeRequests()
 })
 </script>
 
@@ -326,6 +353,22 @@ body,
   flex-direction: column;
   flex-shrink: 0;
   transition: transform 0.3s ease-in-out;
+}
+/* Añade esto al final del <style> en App.vue */
+.nav-item {
+  position: relative; /* Necesario para posicionar el punto */
+}
+
+.notification-dot {
+  position: absolute;
+  top: 10px;
+  right: 15px; /* Ajustado para que se vea bien */
+  width: 10px;
+  height: 10px;
+  background-color: #dc3545; /* Rojo de Bootstrap */
+  border-radius: 50%;
+  border: 2px solid #ffffff; /* Borde blanco para que resalte */
+  box-shadow: 0 0 5px rgba(220, 53, 69, 0.7);
 }
 .sidebar-content {
   padding: 1.5rem 0.75rem;

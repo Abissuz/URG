@@ -46,6 +46,7 @@ const limitedPodcasts = computed(() => {
 /* Tus estilos no necesitan cambios */
 .podcast-preview-container {
   font-family: 'Sulphur Point', sans-serif;
+  margin-top: 30px;
 }
 .section-header {
   display: flex;

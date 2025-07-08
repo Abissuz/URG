@@ -1,5 +1,5 @@
 <template>
-  <div class="user-management-container mt-5">
+  <div class="user-management-container">
     <hr />
     <h2 class="mb-4">Gestión de Usuarios</h2>
 
@@ -152,7 +152,6 @@ onUnmounted(() => {
 <style scoped>
 /* Tus estilos se mantienen, solo una pequeña adición para el dropdown */
 .user-management-container {
-  padding-top: 2rem;
   padding-bottom: 2rem;
 }
 .table thead th {

@@ -15,12 +15,18 @@
         >
           Gestionar Cronograma
         </button>
+
+        <button @click="viewRequests" :class="{ active: activeAdminView === 'requests' }">
+          Peticiones
+          <span v-if="authStore.hasNewSongRequest" class="notification-dot-tab"></span>
+        </button>
+
         <button
           v-if="authStore.isAdmin"
           @click="activeAdminView = 'dashboard'"
           :class="{ active: activeAdminView === 'dashboard' }"
         >
-          Dashboard
+          Dashboard y Usuarios
         </button>
       </div>
     </header>
@@ -211,6 +217,10 @@
       </main>
     </div>
 
+    <div v-else-if="activeAdminView === 'requests'">
+      <SongRequestsView />
+    </div>
+
     <div v-else-if="activeAdminView === 'dashboard'">
       <DashboardView />
       <UserManagementView />
@@ -247,8 +257,12 @@
     </div>
   </Teleport>
 </template>
+
 <script setup>
+// [NUEVO] Añade la importación de SongRequestsView
 import UserManagementView from '@/components/UserManagementView.vue'
+import SongRequestsView from '@/components/SongRequestsView.vue'
+import DashboardView from '@/components/DashboardView.vue'
 import { ref, onMounted, watch } from 'vue'
 import {
   collection,
@@ -260,16 +274,14 @@ import {
   deleteDoc,
   query,
   getDocs,
-  arrayRemove, // Se quita arrayUnion que no se usaba
+  arrayRemove,
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { useAuthStore } from '@/stores/auth'
-import DashboardView from '@/components/DashboardView.vue'
 
-// --- STORES ---
 const authStore = useAuthStore()
 
-// --- ESTADO REACTIVO ---
+// --- ESTADO REACTIVO (Tu código sin cambios) ---
 const podcasts = ref([])
 const isLoading = ref(true)
 const activeAdminView = ref('podcasts')
@@ -292,7 +304,7 @@ let unsubscribeEpisodes = null
 
 const schedule = ref({})
 const scheduleLoading = ref(true)
-const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 const selectedDayForEditing = ref('lunes')
 const newScheduleItem = ref({ time: '', podcastId: '' })
 
@@ -303,9 +315,12 @@ const naturalSort = (a, b) =>
 
 // --- CICLO DE VIDA ---
 onMounted(() => {
-  // Si el usuario es admin, la vista por defecto será el dashboard.
+  // [MODIFICADO] Lógica para la vista por defecto
   if (authStore.isAdmin) {
     activeAdminView.value = 'dashboard'
+  } else if (authStore.isModerator) {
+    // Para que los moderadores empiecen en la nueva vista de peticiones
+    activeAdminView.value = 'requests'
   }
 
   const podcastsCollection = collection(db, 'podcasts')
@@ -314,27 +329,28 @@ onMounted(() => {
     fetchedPodcasts.sort(naturalSort)
     podcasts.value = fetchedPodcasts
     isLoading.value = false
+
+    if (podcasts.value.length > 0 && !selectedPodcastInfo.value) {
+      selectPodcast(podcasts.value[0])
+    }
   })
 
   const scheduleRef = doc(db, 'schedule', 'main')
   onSnapshot(scheduleRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data()
-      // Asegura que todos los días de la semana existan en el objeto
       weekdays.forEach((day) => {
-        if (!data[day]) {
-          data[day] = []
-        }
+        if (!data[day]) data[day] = []
       })
       schedule.value = data
     } else {
-      // Si no existe, crea un schedule vacío para evitar errores
       schedule.value = weekdays.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
     }
     scheduleLoading.value = false
   })
 })
 
+// --- WATCHER (Tu código sin cambios) ---
 watch(
   selectedPodcastInfo,
   (newVal) => {
@@ -367,7 +383,10 @@ watch(
   },
   { deep: true },
 )
-
+const viewRequests = () => {
+  activeAdminView.value = 'requests' // 1. Cambia a la pestaña de peticiones
+  authStore.clearNewSongRequest() // 2. Limpia el estado de la notificación
+}
 // --- FUNCIONES PODCASTS ---
 const selectPodcast = (podcast) => {
   selectedPodcastInfo.value = podcast
@@ -536,13 +555,26 @@ const formatTime = (timeStr) => {
 
 const addScheduleItem = async () => {
   const day = selectedDayForEditing.value
-  if (!newScheduleItem.value.time || !newScheduleItem.value.podcastId) return
+  const timeToAdd = newScheduleItem.value.time
+  const podcastToAddId = newScheduleItem.value.podcastId
 
-  const selectedP = podcasts.value.find((p) => p.id === newScheduleItem.value.podcastId)
+  if (!timeToAdd || !podcastToAddId) {
+    alert('Por favor, selecciona una hora y un podcast.')
+    return
+  }
+
+  const isTimeOccupied = schedule.value[day]?.some((item) => item.time === timeToAdd)
+
+  if (isTimeOccupied) {
+    alert(`Error: La hora ${formatTime(timeToAdd)} ya está ocupada en el cronograma del ${day}.`)
+    return
+  }
+
+  const selectedP = podcasts.value.find((p) => p.id === podcastToAddId)
   if (!selectedP) return
 
   const newItem = {
-    time: newScheduleItem.value.time,
+    time: timeToAdd,
     programTitle: selectedP.title,
     podcastId: selectedP.id,
     hostName: selectedP.host.name,
@@ -624,7 +656,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
 .schedule-manager-layout {
   display: flex;
   gap: 2rem;
-  height: 100%;
+  flex-grow: 1; /* Permite que el layout ocupe el espacio restante */
   overflow: hidden; /* Evita el scroll del contenedor principal */
 }
 .list-column,
@@ -634,7 +666,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   background-color: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  overflow-y: auto; /* El scroll está en cada columna */
+  overflow-y: auto; /* El scroll está en cada columna individual */
   height: 100%;
 }
 .list-column,
@@ -652,6 +684,32 @@ const removeScheduleItem = async (day, itemToRemove) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.admin-tabs button {
+  position: relative; /* Asegura que el posicionamiento del punto funcione */
+}
+
+.notification-dot-tab {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  background-color: #dc3545;
+  border-radius: 50%;
+  animation: pulse-sm 1.5s infinite;
+}
+
+@keyframes pulse-sm {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 5px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
 }
 .list-header h2 {
   margin: 0;
@@ -677,7 +735,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
 .podcast-list {
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin-top: 8px;
 }
 .podcast-list-item {
   padding: 0.75rem 1rem;

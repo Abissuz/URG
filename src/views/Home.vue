@@ -1,39 +1,34 @@
 <template>
-  <div class="main">
+  <div class="home-layout">
     <div class="music-container">
-      <!-- Cabecera de la sección -->
       <div class="music-header">
         <h2>Canciones</h2>
-        <img src="@/assets/img/lupa.png" class="lupa" alt="Buscar" />
+        <img src="@/assets/img/lupa.png" class="lupa" alt="Buscar" title="Buscar (Próximamente)" />
       </div>
 
-      <!-- Cuadrícula de canciones con scroll horizontal -->
-      <div class="music-grid">
-        <div v-for="i in 15" :key="i" class="track">
-          <img :src="logoUrl" class="track-cover" alt="Album" />
+      <div v-if="isLoading" class="loading-songs">
+        <div class="spinner-border spinner-border-sm" role="status"></div>
+        <span>Cargando canciones...</span>
+      </div>
+
+      <div v-else class="music-grid">
+        <div
+          v-for="song in songs"
+          :key="song.id"
+          class="track"
+          @click="requestSong(song)"
+          title="Solicitar esta canción"
+        >
+          <img :src="song.coverImage" class="track-cover" :alt="song.title" @error="onImageError" />
           <div class="track-info">
-            <span class="track-title">Canción Ejemplo {{ i }}</span>
-            <span class="track-artist">Artista {{ i }}</span>
+            <span class="track-title">{{ song.title }}</span>
+            <span class="track-artist">{{ song.artist }}</span>
           </div>
-          <span class="track-duration">3:{{ i < 10 ? '0' + i : i }}</span>
+          <span class="track-duration">{{ song.duration }}</span>
         </div>
       </div>
     </div>
-    <!-- <div class="cronograma-container">
-      <div class="cronograma-header">
-        <h2>Cronograma</h2>
-      </div>
-      <div class="music-table">
-        <div v-for="i in 12" :key="i" class="track">
-          <img :src="logoUrl" class="track-cover" alt="Album" />
-          <div class="track-info">
-            <span class="track-title">Los Kemonitos {{ i }}</span>
-            <span class="track-artist">Autor: Flavio y Mariano {{ i }}</span>
-            <span class="track-duration">Fecha: {{ i < 10 ? '0' + i : i }}</span>
-          </div>
-        </div>
-      </div>
-    </div> -->
+
     <ScheduleWidget />
   </div>
 
@@ -42,45 +37,68 @@
 </template>
 
 <script setup>
-import logoUrl from '@/assets/img/logo-urg.png' // Importación correcta de la imagen
 import VideoPreview from '@/components/VideoPreview.vue'
 import PodcastPreview from '@/components/PodcastPreview.vue'
 import ScheduleWidget from '@/components/ScheduleWidget.vue'
+
+import { onMounted } from 'vue'
+import { useSongStore } from '@/stores/songs'
+import { storeToRefs } from 'pinia'
+
+const songStore = useSongStore()
+const { songs, isLoading } = storeToRefs(songStore)
+
+// Llamamos a la acción para solicitar la canción
+const requestSong = (song) => {
+  songStore.requestSong(song)
+}
+
+// Función para manejar errores de carga de imágenes y mostrar una por defecto
+const onImageError = (event) => {
+  event.target.src = new URL('@/assets/img/Blanci.png', import.meta.url).href
+}
+
+onMounted(() => {
+  songStore.fetchSongs()
+})
 </script>
 
 <style scoped>
-.main {
+.home-layout {
   display: flex;
-  /* height: 100%; */
   padding: 1.5rem;
-  gap: 25px;
+  gap: 1.5rem;
+  /* Controla la altura para que los hijos puedan usar el 100% */
+  height: calc(100vh - 70px - 90px); /* vh - header - bottomPlayer */
 }
+
 .music-container {
-  width: 50%;
-  border: 1px solid #0d4d98;
+  flex: 1; /* Ocupa el espacio disponible */
+  min-width: 300px;
+  border: 1px solid #e0e0e0;
   border-radius: 10px;
   font-family: 'Sulphur Point', sans-serif;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background-color: #fff;
 }
 
 .music-header {
   position: relative;
   background-color: #0d4d98;
-  padding: 15px 20px;
+  padding: 1rem 1.25rem;
   display: flex;
   justify-content: center;
   align-items: center;
-  border-top-left-radius: 9px;
-  border-top-right-radius: 9px;
-  flex-shrink: 0; /* Evita que el header se encoja */
+  border-bottom: 1px solid #dee2e6;
+  flex-shrink: 0;
 }
 
 .music-header h2 {
   margin: 0;
-  font-size: 1.3rem;
-  font-family: 'Sulphur Point', sans-serif;
+  font-size: 1.25rem;
   color: white;
   font-weight: 700;
 }
@@ -94,35 +112,50 @@ import ScheduleWidget from '@/components/ScheduleWidget.vue'
   cursor: pointer;
 }
 
-/* Contenedor de la cuadrícula de canciones con scroll horizontal */
-.music-grid {
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(4, auto);
-  grid-auto-columns: minmax(300px, 1fr);
-  gap: 0 20px;
+.loading-songs {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
   height: 100%;
-  padding: 0 13px 13px 13px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  color: #6c757d;
+  font-weight: 600;
 }
 
-/* Estilos de cada "casilla" de canción */
+/* Contenedor de la cuadrícula con scroll */
+.music-grid {
+  display: grid;
+  /* Crea columnas de 4 filas y luego fluye horizontalmente */
+  grid-auto-flow: column;
+  grid-template-rows: repeat(4, auto);
+  /* Cada columna tendrá un ancho mínimo de 300px */
+  grid-auto-columns: minmax(300px, 1fr);
+  gap: 0 20px;
+  padding: 10px;
+  /* El scroll ahora es solo horizontal */
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 100%;
+}
+
 .track {
   display: flex;
-  gap: 15px;
   align-items: center;
-  padding: 12px 11px;
-  border-bottom: 1px solid #a3a3a3a6;
-  border-top: solid 1px #a3a3a3a6;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
   transition: background-color 0.2s ease;
 }
 
-/* Quitar la línea del último elemento de cada "columna" visual */
+.track:hover {
+  background-color: #f8f9fa;
+}
+
+/* Quita la línea del último elemento de cada "columna" visual */
 .track:nth-child(4n) {
   border-bottom: none;
 }
-/* Asegurarse que el último elemento NUNCA tenga borde */
 .track:last-child {
   border-bottom: none;
 }
@@ -131,191 +164,79 @@ import ScheduleWidget from '@/components/ScheduleWidget.vue'
   width: 50px;
   height: 50px;
   border-radius: 4px;
-  margin-right: 15px;
+  object-fit: cover;
   flex-shrink: 0;
+  background-color: #eee;
 }
 
 .track-info {
   display: flex;
   flex-direction: column;
-  flex-grow: 1; /* Ocupa el espacio disponible */
-  overflow: hidden; /* Para que el ellipsis funcione */
+  flex-grow: 1;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .track-title {
-  color: #ffffff;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #343a40;
 }
 
 .track-artist {
-  color: #b3b3b3;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  color: #6c757d;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .track-duration {
-  color: #b3b3b3;
+  color: #6c757d;
   font-size: 0.9rem;
-  margin-left: auto; /* Empuja la duración al final */
-  padding-left: 15px;
+  margin-left: auto;
+  padding-left: 1rem;
 }
 
 /* Scrollbar personalizado */
 .music-grid::-webkit-scrollbar {
-  height: 6px;
+  height: 8px;
 }
 .music-grid::-webkit-scrollbar-track {
   background: #f1f1f1;
-  /* border-radius: 4px; */
 }
 .music-grid::-webkit-scrollbar-thumb {
-  background-color: #80868c5c;
-  border-radius: 3px;
+  background-color: #c1c1c1;
+  border-radius: 4px;
+}
+.music-grid::-webkit-scrollbar-thumb:hover {
+  background-color: #a8a8a8;
 }
 
-/* .music-grid:-webkit-scrollbar {
-  width: 6px;
-}
-.music-grid::-webkit-scrollbar-thumb {
-  background: #80868c5c;
-  border-radius: 3px;
-}
-.music-grid::-webkit-scrollbar-track {
-  background: #f1f1f1;
-} */
-
-/* Historial */
-/* .historial-container {
-  width: 430px;
-  height: 530px;
-  border: 1px solid #0d4d98;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  font-family: 'Sulphur Point', sans-serif;
-}
-
-.historial-header {
-  background-color: #0069e2;
-  color: white;
-  padding: 15px 20px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.historial-header h2 {
-  margin: 0;
-  font-size: 1.3rem;
-  font-weight: 700;
-} */
-
-/* End historial */
-/* Cronograma */
-.cronograma-container {
-  width: 50%;
-  height: 530px;
-  border: 1px solid #0d4d98;
-  border-radius: 10px;
-  overflow: hidden;
-  overflow-y: auto;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  font-family: 'Sulphur Point', sans-serif; /* Aplicado globalmente */
-}
-
-.cronograma-header {
-  background-color: #0d4d98;
-  color: white;
-  padding: 15px 20px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cronograma-header h2 {
-  margin: 0;
-  font-size: 1.3rem;
-  font-weight: 700;
-}
-
-/* End cronograma */
-.music-table {
-  height: calc(100% - 53px);
-  overflow-y: auto;
-  background: white;
-}
-
-.track {
-  display: flex;
-  gap: 15px;
-  align-items: center;
-  padding: 12px 11px;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background-color 0.2s ease;
-}
-
-.track:hover {
-  background-color: #f0f8ff; /* Color más suave al hacer hover */
-}
-
-.track-cover {
-  width: 85px;
-  height: 85px;
-  border-radius: 5px;
-  object-fit: scale-down;
-  border: 1px solid #eee;
-}
-
-.track-info {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0; /* Necesario para ellipsis */
-}
-
-.track-title {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 3px;
-  color: #333;
-}
-
-.track-artist {
-  font-size: 0.8em;
-  color: #666;
-}
-
-.track-duration {
-  color: #666;
-  font-size: 0.9em;
-  font-family: monospace; /* Para alinear mejor los números */
-}
-
-/* Scroll personalizado mejorado */
-.music-table::-webkit-scrollbar {
-  width: 6px;
-}
-.music-table::-webkit-scrollbar-thumb {
-  background: #80868c5c;
-  border-radius: 3px;
-}
-.music-table::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
+/* Media Query para diseño en móviles */
 @media screen and (max-width: 812px) {
-  .main {
+  .home-layout {
     flex-direction: column;
+    height: auto;
   }
-  .music-container,
-  .cronograma-container {
+  .music-container {
     width: 100%;
+    /* En móvil, limitamos la altura y permitimos scroll vertical */
+    max-height: 400px;
+  }
+  .music-grid {
+    /* En móvil, cambiamos a una sola columna con scroll vertical */
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+    grid-template-rows: unset;
+    overflow-y: auto;
+    overflow-x: hidden;
+    gap: 0;
+  }
+  .track {
+    border-bottom: 1px solid #f0f0f0 !important;
   }
 }
 </style>
