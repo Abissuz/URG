@@ -32,7 +32,7 @@
       </div>
       <div v-else-if="videoError" class="alert alert-danger text-center">
         <p class="mb-0">⚠️ {{ videoError }}</p>
-        <button @click="fetchAllVideos" class="btn btn-primary mt-2">Reintentar</button>
+        <button @click="fetchAllVideos(true)" class="btn btn-primary mt-2">Reintentar</button>
       </div>
       <div v-else class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         <div
@@ -91,7 +91,9 @@
 import { ref, onMounted, computed, watch, inject } from 'vue'
 import { useRoute } from 'vue-router'
 import PodcastGrid from '@/components/PodcastGrid.vue'
-import VideoModal from '@/components/VideoModal.vue' // <-- CAMBIO: Importar el modal
+import VideoModal from '@/components/VideoModal.vue'
+// 1. Importar las notificaciones
+import { showSuccessToast, showErrorToast } from '@/stores/notifications.js'
 
 const scrollTop = inject('scrollTop')
 const route = useRoute()
@@ -128,8 +130,6 @@ const allVideos = ref([])
 const videoLoading = ref(true)
 const videoError = ref(null)
 const videoCurrentPage = ref(1)
-
-// --- CAMBIO: Lógica para manejar el estado del modal ---
 const selectedVideoId = ref(null)
 
 const openVideoModal = (videoId) => {
@@ -138,7 +138,6 @@ const openVideoModal = (videoId) => {
 const closeVideoModal = () => {
   selectedVideoId.value = null
 }
-// --- FIN DEL CAMBIO ---
 
 const filteredVideos = computed(() => {
   if (!searchQuery.value.trim()) return allVideos.value
@@ -148,7 +147,6 @@ const filteredVideos = computed(() => {
 })
 
 const videoTotalPages = computed(() => Math.ceil(filteredVideos.value.length / VIDEOS_PER_PAGE))
-
 const paginatedVideos = computed(() => {
   const start = (videoCurrentPage.value - 1) * VIDEOS_PER_PAGE
   const end = start + VIDEOS_PER_PAGE
@@ -191,7 +189,8 @@ const formatDate = (dateString) =>
     day: 'numeric',
   })
 
-const fetchAllVideos = async () => {
+// 2. Modificar fetchAllVideos para manejar notificaciones
+const fetchAllVideos = async (isManualRetry = false) => {
   videoLoading.value = true
   videoError.value = null
   let nextPageToken = null
@@ -216,8 +215,14 @@ const fetchAllVideos = async () => {
       nextPageToken = data.nextPageToken
     } while (nextPageToken)
     allVideos.value = fetchedVideos
+    // 3. Si fue un reintento manual exitoso, notificar
+    if (isManualRetry) {
+      showSuccessToast('¡Videos cargados correctamente!')
+    }
   } catch (err) {
     videoError.value = 'No se pudieron cargar los videos.'
+    // 4. Si hay un error, siempre notificar
+    showErrorToast('No se pudieron cargar los videos.')
   } finally {
     videoLoading.value = false
   }
@@ -232,9 +237,9 @@ const goToVideoPage = (page) => {
   }
 }
 
-// --- INICIALIZACIÓN ---
 onMounted(() => {
   setViewFromQuery(route.query)
+  // Se llama sin parámetros para la carga inicial
   fetchAllVideos()
 })
 </script>
@@ -285,7 +290,7 @@ onMounted(() => {
 .toggle-switch button {
   background: transparent;
   border: none;
-  color: white;
+  color: #fff;
   padding: 8px 24px;
   font-weight: 700;
   cursor: pointer;
@@ -301,7 +306,7 @@ onMounted(() => {
   top: 5px;
   height: calc(100% - 10px);
   width: 50%;
-  background-color: white;
+  background-color: #fff;
   border-radius: 50px;
   z-index: 1;
   transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -333,14 +338,14 @@ onMounted(() => {
   padding: 10px 20px;
   border: 1px solid #0d4d98;
   background-color: rgba(13, 77, 152, 0.68);
-  color: white;
+  color: #fff;
   text-align: center;
 }
 .form-control:focus {
   border: 1px solid #0d4d98;
   background-color: rgba(13, 77, 152, 0.68);
   box-shadow: none;
-  color: white;
+  color: #fff;
 }
 .video-card {
   border: 1px solid #343a4063;
@@ -381,7 +386,7 @@ onMounted(() => {
 .pagination .page-item.active .page-link {
   background-color: #0d4d98;
   border-color: #0d4d98;
-  color: white;
+  color: #fff;
 }
 .pagination .page-item.disabled .page-link {
   border-color: #343a4060;

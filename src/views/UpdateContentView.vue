@@ -15,12 +15,10 @@
         >
           Gestionar Cronograma
         </button>
-
         <button @click="viewRequests" :class="{ active: activeAdminView === 'requests' }">
           Peticiones
           <span v-if="authStore.hasNewSongRequest" class="notification-dot-tab"></span>
         </button>
-
         <button
           v-if="authStore.isAdmin"
           @click="activeAdminView = 'dashboard'"
@@ -104,7 +102,6 @@
             <button v-if="form.id" @click="deletePodcast" type="button" class="delete-podcast-btn">
               Eliminar Podcast
             </button>
-            <p v-if="saveSuccess" class="save-success-message">¡Guardado con éxito!</p>
           </div>
           <hr />
           <div v-if="form.id" class="episodes-section">
@@ -220,7 +217,6 @@
     <div v-else-if="activeAdminView === 'requests'">
       <SongRequestsView />
     </div>
-
     <div v-else-if="activeAdminView === 'dashboard'">
       <DashboardView />
       <UserManagementView />
@@ -259,7 +255,6 @@
 </template>
 
 <script setup>
-// [NUEVO] Añade la importación de SongRequestsView
 import UserManagementView from '@/components/UserManagementView.vue'
 import SongRequestsView from '@/components/SongRequestsView.vue'
 import DashboardView from '@/components/DashboardView.vue'
@@ -278,10 +273,14 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { useAuthStore } from '@/stores/auth'
+import {
+  showSuccessToast,
+  showErrorToast,
+  showWarningToast,
+  showConfirmDialog,
+} from '@/stores/notifications.js'
 
 const authStore = useAuthStore()
-
-// --- ESTADO REACTIVO (Tu código sin cambios) ---
 const podcasts = ref([])
 const isLoading = ref(true)
 const activeAdminView = ref('podcasts')
@@ -294,71 +293,65 @@ const form = ref({
   host: { name: '', image: '' },
 })
 const isSaving = ref(false)
-const saveSuccess = ref(false)
 const episodes = ref([])
 const episodesLoading = ref(false)
 const isEpisodeModalOpen = ref(false)
 const isSavingEpisode = ref(false)
 const newEpisodeForm = ref({ title: '', audioURL: '' })
 let unsubscribeEpisodes = null
-
 const schedule = ref({})
 const scheduleLoading = ref(true)
 const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 const selectedDayForEditing = ref('lunes')
 const newScheduleItem = ref({ time: '', podcastId: '' })
-
 const isEditingMobile = ref(false)
 
 const naturalSort = (a, b) =>
   a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
 
-// --- CICLO DE VIDA ---
 onMounted(() => {
-  // [MODIFICADO] Lógica para la vista por defecto
-  if (authStore.isAdmin) {
-    activeAdminView.value = 'dashboard'
-  } else if (authStore.isModerator) {
-    // Para que los moderadores empiecen en la nueva vista de peticiones
-    activeAdminView.value = 'requests'
-  }
+  if (authStore.isAdmin) activeAdminView.value = 'dashboard'
+  else if (authStore.isModerator) activeAdminView.value = 'requests'
 
   const podcastsCollection = collection(db, 'podcasts')
-  onSnapshot(podcastsCollection, (querySnapshot) => {
-    const fetchedPodcasts = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-    fetchedPodcasts.sort(naturalSort)
-    podcasts.value = fetchedPodcasts
-    isLoading.value = false
-
-    if (podcasts.value.length > 0 && !selectedPodcastInfo.value) {
-      selectPodcast(podcasts.value[0])
-    }
-  })
+  onSnapshot(
+    podcastsCollection,
+    (querySnapshot) => {
+      const fetchedPodcasts = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      fetchedPodcasts.sort(naturalSort)
+      podcasts.value = fetchedPodcasts
+      isLoading.value = false
+      if (podcasts.value.length > 0 && !selectedPodcastInfo.value) {
+        selectPodcast(podcasts.value[0])
+      }
+    },
+    (error) => showErrorToast('Error al cargar podcasts.'),
+  )
 
   const scheduleRef = doc(db, 'schedule', 'main')
-  onSnapshot(scheduleRef, (docSnap) => {
-    if (docSnap.exists()) {
-      const data = docSnap.data()
-      weekdays.forEach((day) => {
-        if (!data[day]) data[day] = []
-      })
-      schedule.value = data
-    } else {
-      schedule.value = weekdays.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
-    }
-    scheduleLoading.value = false
-  })
+  onSnapshot(
+    scheduleRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        weekdays.forEach((day) => {
+          if (!data[day]) data[day] = []
+        })
+        schedule.value = data
+      } else {
+        schedule.value = weekdays.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
+      }
+      scheduleLoading.value = false
+    },
+    (error) => showErrorToast('Error al cargar cronograma.'),
+  )
 })
 
-// --- WATCHER (Tu código sin cambios) ---
 watch(
   selectedPodcastInfo,
   (newVal) => {
-    if (!newVal) {
-      isEditingMobile.value = false
-    }
+    if (!newVal) isEditingMobile.value = false
     if (unsubscribeEpisodes) unsubscribeEpisodes()
-
     if (newVal && newVal.id) {
       form.value = JSON.parse(JSON.stringify(newVal))
       episodesLoading.value = true
@@ -383,63 +376,54 @@ watch(
   },
   { deep: true },
 )
+
 const viewRequests = () => {
-  activeAdminView.value = 'requests' // 1. Cambia a la pestaña de peticiones
-  authStore.clearNewSongRequest() // 2. Limpia el estado de la notificación
+  activeAdminView.value = 'requests'
+  authStore.clearNewSongRequest()
 }
-// --- FUNCIONES PODCASTS ---
 const selectPodcast = (podcast) => {
   selectedPodcastInfo.value = podcast
   isEditingMobile.value = true
 }
-
 const prepareNewPodcast = () => {
   selectedPodcastInfo.value = {}
   isEditingMobile.value = true
 }
-
 const saveChanges = async () => {
-  if (!form.value.title) return alert('El título es obligatorio.')
+  if (!form.value.title) return showWarningToast('El título es obligatorio.')
   isSaving.value = true
-  saveSuccess.value = false
   try {
     const podcastData = { ...form.value }
     delete podcastData.id
-
     if (form.value.id) {
       await updateDoc(doc(db, 'podcasts', form.value.id), podcastData)
     } else {
       const newDocRef = await addDoc(collection(db, 'podcasts'), podcastData)
       selectPodcast({ id: newDocRef.id, ...podcastData })
     }
-    saveSuccess.value = true
-    setTimeout(() => (saveSuccess.value = false), 3000)
+    showSuccessToast('¡Podcast guardado con éxito!')
   } catch (error) {
-    console.error('Error guardando podcast:', error)
-    alert('No se pudo guardar el podcast.')
+    showErrorToast('No se pudo guardar el podcast.')
   } finally {
     isSaving.value = false
   }
 }
-
 const deletePodcast = async () => {
   const podcastId = form.value.id
-  if (
-    !podcastId ||
-    !confirm(`¿Estás SEGURO de que quieres eliminar el podcast "${form.value.title}"?`)
+  if (!podcastId) return
+  const confirmed = await showConfirmDialog(
+    `¿Eliminar Podcast?`,
+    `Estás a punto de eliminar "${form.value.title}" y todos sus episodios. Esta acción es irreversible.`,
   )
-    return
-
+  if (!confirmed) return
   isSaving.value = true
   try {
     const podcastRef = doc(db, 'podcasts', podcastId)
     const episodesSnapshot = await getDocs(collection(podcastRef, 'episodes'))
     const episodeIdsToDelete = episodesSnapshot.docs.map((d) => d.id)
-
     const deletePromises = episodesSnapshot.docs.map((eDoc) => deleteDoc(eDoc.ref))
     await Promise.all(deletePromises)
     await deleteDoc(podcastRef)
-
     const usersSnapshot = await getDocs(collection(db, 'users'))
     const favoriteUpdates = usersSnapshot.docs
       .map((userDoc) => {
@@ -459,31 +443,25 @@ const deletePodcast = async () => {
         }
       })
       .filter(Boolean)
-
     await Promise.all(favoriteUpdates)
-    alert(`El podcast "${form.value.title}" ha sido eliminado.`)
+    showSuccessToast(`El podcast "${form.value.title}" ha sido eliminado.`)
     selectedPodcastInfo.value = null
   } catch (error) {
-    console.error('Error eliminando podcast:', error)
-    alert('Ocurrió un error al eliminar el podcast.')
+    showErrorToast('Ocurrió un error al eliminar el podcast.')
   } finally {
     isSaving.value = false
   }
 }
-
-// --- FUNCIONES EPISODIOS ---
 const openNewEpisodeModal = () => {
   newEpisodeForm.value = { title: '', audioURL: '' }
   isEpisodeModalOpen.value = true
 }
-
 const closeNewEpisodeModal = () => {
   isEpisodeModalOpen.value = false
 }
-
 const saveNewEpisode = async () => {
   if (!newEpisodeForm.value.title || !newEpisodeForm.value.audioURL)
-    return alert('Ambos campos son obligatorios.')
+    return showWarningToast('Ambos campos son obligatorios.')
   isSavingEpisode.value = true
   try {
     const episodesCollection = collection(db, 'podcasts', form.value.id, 'episodes')
@@ -493,20 +471,22 @@ const saveNewEpisode = async () => {
       commentsEnabled: true,
       publishedDate: serverTimestamp(),
     })
+    showSuccessToast('Episodio añadido correctamente.')
     closeNewEpisodeModal()
   } catch (error) {
-    console.error('Error guardando episodio:', error)
-    alert('Ocurrió un error al guardar el episodio.')
+    showErrorToast('Ocurrió un error al guardar el episodio.')
   } finally {
     isSavingEpisode.value = false
   }
 }
-
 const deleteEpisode = async (episodeId) => {
-  if (!confirm(`¿Seguro que quieres eliminar este episodio?`)) return
+  const confirmed = await showConfirmDialog(
+    '¿Eliminar Episodio?',
+    'Esta acción no se puede deshacer.',
+  )
+  if (!confirmed) return
   try {
     await deleteDoc(doc(db, 'podcasts', form.value.id, 'episodes', episodeId))
-
     const usersSnapshot = await getDocs(collection(db, 'users'))
     const favoriteUpdates = usersSnapshot.docs
       .map((userDoc) => {
@@ -526,25 +506,22 @@ const deleteEpisode = async (episodeId) => {
         }
       })
       .filter(Boolean)
-
     await Promise.all(favoriteUpdates)
+    showSuccessToast('Episodio eliminado.')
   } catch (error) {
-    console.error('Error eliminando episodio:', error)
-    alert('Ocurrió un error al eliminar el episodio.')
+    showErrorToast('Ocurrió un error al eliminar el episodio.')
   }
 }
-
 const toggleComments = async (episode) => {
   try {
     await updateDoc(doc(db, 'podcasts', form.value.id, 'episodes', episode.id), {
       commentsEnabled: !episode.commentsEnabled,
     })
+    showSuccessToast(`Comentarios ${episode.commentsEnabled ? 'deshabilitados' : 'habilitados'}.`)
   } catch (error) {
-    console.error('Error actualizando comentarios:', error)
+    showErrorToast('No se pudo actualizar el estado.')
   }
 }
-
-// --- FUNCIONES CRONOGRAMA ---
 const formatTime = (timeStr) => {
   if (!timeStr) return ''
   const [hours, minutes] = timeStr.split(':')
@@ -552,58 +529,48 @@ const formatTime = (timeStr) => {
   date.setHours(hours, minutes, 0)
   return date.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
-
 const addScheduleItem = async () => {
   const day = selectedDayForEditing.value
   const timeToAdd = newScheduleItem.value.time
   const podcastToAddId = newScheduleItem.value.podcastId
-
   if (!timeToAdd || !podcastToAddId) {
-    alert('Por favor, selecciona una hora y un podcast.')
-    return
+    return showWarningToast('Por favor, selecciona una hora y un podcast.')
   }
-
-  const isTimeOccupied = schedule.value[day]?.some((item) => item.time === timeToAdd)
-
-  if (isTimeOccupied) {
-    alert(`Error: La hora ${formatTime(timeToAdd)} ya está ocupada en el cronograma del ${day}.`)
-    return
+  if (schedule.value[day]?.some((item) => item.time === timeToAdd)) {
+    return showErrorToast(`La hora ${formatTime(timeToAdd)} ya está ocupada.`)
   }
-
   const selectedP = podcasts.value.find((p) => p.id === podcastToAddId)
   if (!selectedP) return
-
   const newItem = {
     time: timeToAdd,
     programTitle: selectedP.title,
     podcastId: selectedP.id,
     hostName: selectedP.host.name,
   }
-
   const scheduleRef = doc(db, 'schedule', 'main')
-  const currentDaySchedule = schedule.value[day] || []
-  const updatedSchedule = [...currentDaySchedule, newItem].sort((a, b) =>
+  const updatedSchedule = [...(schedule.value[day] || []), newItem].sort((a, b) =>
     a.time.localeCompare(b.time),
   )
-
   try {
     await updateDoc(scheduleRef, { [day]: updatedSchedule })
+    showSuccessToast('Programa añadido al cronograma.')
     newScheduleItem.value = { time: '', podcastId: '' }
   } catch (error) {
-    console.error('Error añadiendo al cronograma:', error)
-    alert('No se pudo añadir el programa.')
+    showErrorToast('No se pudo añadir el programa.')
   }
 }
-
 const removeScheduleItem = async (day, itemToRemove) => {
-  if (!confirm(`¿Seguro que quieres eliminar "${itemToRemove.programTitle}" del cronograma?`))
-    return
+  const confirmed = await showConfirmDialog(
+    '¿Eliminar del Cronograma?',
+    `Vas a quitar "${itemToRemove.programTitle}" de la programación.`,
+  )
+  if (!confirmed) return
   try {
     const scheduleRef = doc(db, 'schedule', 'main')
     await updateDoc(scheduleRef, { [day]: arrayRemove(itemToRemove) })
+    showSuccessToast('Programa eliminado del cronograma.')
   } catch (error) {
-    console.error('Error eliminando del cronograma:', error)
-    alert('No se pudo eliminar el programa.')
+    showErrorToast('No se pudo eliminar el programa.')
   }
 }
 </script>

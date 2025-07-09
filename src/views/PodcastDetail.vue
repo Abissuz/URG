@@ -10,7 +10,6 @@
         </div>
         <div class="col-md-8">
           <h1 class="display-5 fw-bold text-primary">{{ podcast.title }}</h1>
-
           <div class="host-info d-flex align-items-center my-3">
             <img
               v-if="podcast.host && podcast.host.image"
@@ -20,7 +19,6 @@
             />
             <p class="lead mb-0 ms-3">{{ podcast.host.name }}</p>
           </div>
-
           <hr />
           <p>{{ podcast.description }}</p>
         </div>
@@ -51,7 +49,7 @@
                   ]"
                 ></i>
               </button>
-              <button @click="playEpisode(episode)" class="btn btn-sm btn-outline-primary">
+              <button @click.stop="playEpisode(episode)" class="btn btn-sm btn-outline-primary">
                 <i class="fas fa-play me-2"></i>Reproducir
               </button>
             </div>
@@ -59,7 +57,6 @@
         </ul>
       </div>
 
-      <!-- Sección de Comentarios -->
       <div v-if="selectedEpisodeForComments" class="comments-section-wrapper mt-5">
         <div
           v-if="!selectedEpisodeForComments.commentsEnabled"
@@ -73,7 +70,6 @@
             <span class="text-primary">{{ selectedEpisodeForComments.title }}</span>
           </h3>
 
-          <!-- Formulario para nuevo comentario -->
           <div v-if="authStore.isLoggedIn" class="card mb-4">
             <div class="card-body">
               <form @submit.prevent="postComment">
@@ -94,7 +90,6 @@
             <router-link to="/login">Inicia sesión</router-link> para dejar un comentario.
           </div>
 
-          <!-- [NUEVO] Barra de acciones de moderación -->
           <div
             v-if="authStore.canUpdateContent && comments.length > 0"
             class="moderation-bar card card-body bg-light mb-3"
@@ -111,7 +106,6 @@
             </div>
           </div>
 
-          <!-- Lista de Comentarios -->
           <div v-if="commentsLoading" class="text-center">
             <div class="spinner-border spinner-border-sm" role="status"></div>
           </div>
@@ -125,7 +119,6 @@
               class="comment-item card card-body mb-3"
             >
               <div class="d-flex align-items-start">
-                <!-- [NUEVO] Checkbox de moderación -->
                 <input
                   v-if="authStore.canUpdateContent"
                   type="checkbox"
@@ -153,7 +146,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-// [NUEVO] Se importa 'deleteDoc'
 import {
   collection,
   query,
@@ -170,6 +162,7 @@ import { usePlayerStore } from '@/stores/player'
 import { usePodcastStore } from '@/stores/counter'
 import { useFavoritesStore } from '@/stores/favorites'
 import { useAuthStore } from '@/stores/auth'
+import { showSuccessToast, showErrorToast, showConfirmDialog } from '@/stores/notifications.js'
 
 const route = useRoute()
 const playerStore = usePlayerStore()
@@ -190,15 +183,11 @@ const newCommentText = ref('')
 const isPostingComment = ref(false)
 let unsubscribeComments = null
 
-// [NUEVO] Estado para la moderación
 const selectedComments = ref(new Set())
 
 const playEpisode = (episode) => playerStore.playOnDemandTrack(episode)
-
-const naturalSort = (a, b) => {
-  return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
-}
-
+const naturalSort = (a, b) =>
+  a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
 const formatDate = (date) => {
   if (!date) return ''
   return new Intl.DateTimeFormat('es-ES', { dateStyle: 'long', timeStyle: 'short' }).format(date)
@@ -211,11 +200,10 @@ const selectEpisodeForComments = (episode) => {
     comments.value = []
     return
   }
-
   selectedEpisodeForComments.value = episode
   if (unsubscribeComments) unsubscribeComments()
   comments.value = []
-  selectedComments.value.clear() // Limpia la selección al cambiar de episodio
+  selectedComments.value.clear()
 
   if (episode.commentsEnabled) {
     commentsLoading.value = true
@@ -223,7 +211,6 @@ const selectEpisodeForComments = (episode) => {
       collection(db, 'podcasts', podcastId, 'episodes', episode.id, 'comments'),
       orderBy('createdAt', 'desc'),
     )
-
     unsubscribeComments = onSnapshot(
       commentsQuery,
       (snapshot) => {
@@ -232,6 +219,7 @@ const selectEpisodeForComments = (episode) => {
       },
       (error) => {
         console.error('Error cargando comentarios:', error)
+        showErrorToast('Error al cargar los comentarios')
         commentsLoading.value = false
       },
     )
@@ -257,15 +245,15 @@ const postComment = async () => {
       createdAt: serverTimestamp(),
     })
     newCommentText.value = ''
+    showSuccessToast('Comentario publicado con éxito')
   } catch (error) {
     console.error('Error al publicar comentario:', error)
-    alert('No se pudo publicar tu comentario.')
+    showErrorToast('No se pudo publicar tu comentario')
   } finally {
     isPostingComment.value = false
   }
 }
 
-// [NUEVO] Funciones de moderación
 const toggleCommentSelection = (commentId) => {
   if (selectedComments.value.has(commentId)) {
     selectedComments.value.delete(commentId)
@@ -278,13 +266,11 @@ const deleteSelectedComments = async () => {
   const count = selectedComments.value.size
   if (count === 0) return
 
-  if (
-    !confirm(
-      `¿Estás seguro de que quieres eliminar ${count} comentario(s) seleccionados? Esta acción no se puede deshacer.`,
-    )
-  ) {
-    return
-  }
+  const confirmed = await showConfirmDialog(
+    '¿Eliminar comentarios?',
+    `Estás a punto de eliminar ${count} comentario(s). Esta acción no se puede deshacer.`,
+  )
+  if (!confirmed) return
 
   try {
     const deletePromises = []
@@ -302,10 +288,11 @@ const deleteSelectedComments = async () => {
     })
 
     await Promise.all(deletePromises)
-    selectedComments.value.clear() // Limpia la selección después de borrar
+    showSuccessToast(`${count} comentario(s) eliminado(s) correctamente.`)
+    selectedComments.value.clear()
   } catch (error) {
     console.error('Error eliminando comentarios:', error)
-    alert('Ocurrió un error al eliminar los comentarios.')
+    showErrorToast('Ocurrió un error al eliminar los comentarios.')
   }
 }
 
@@ -334,6 +321,7 @@ onMounted(async () => {
     })
   } catch (error) {
     console.error('Error al cargar la página del podcast:', error)
+    showErrorToast('No se pudo cargar la información del podcast.')
     loading.value = false
   }
 })
@@ -345,7 +333,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Tus estilos existentes... */
+/* Tus estilos existentes no han sido modificados */
 .img-fluid {
   max-height: 350px;
   border-radius: 1rem !important;
@@ -384,11 +372,11 @@ onUnmounted(() => {
   animation: bounce 0.3s ease;
 }
 .host-avatar {
-  width: 60px; /* Ancho del avatar */
-  height: 60px; /* Alto del avatar */
-  border-radius: 50%; /* Esto lo hace perfectamente redondo */
-  object-fit: cover; /* Evita que la imagen se estire o se deforme */
-  border: 3px solid #0d4d98; /* Un borde con el color primario de tu app */
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #0d4d98;
 }
 @keyframes bounce {
   0% {
@@ -420,8 +408,6 @@ onUnmounted(() => {
   background-color: #fff;
   border: 1px solid #dee2e6;
 }
-
-/* [NUEVO] Estilos para la moderación */
 .moderation-bar {
   border-color: #ffc107;
 }

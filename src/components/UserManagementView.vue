@@ -86,9 +86,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue' // <--- Se añade 'ref' y 'onUnmounted'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
+// 1. Importar todas las notificaciones necesarias
+import { showConfirmDialog, showSuccessToast, showErrorToast } from '@/stores/notifications.js'
 
 const authStore = useAuthStore()
 const { userList, loadingUsers, usersError } = storeToRefs(authStore)
@@ -96,41 +98,47 @@ const { userList, loadingUsers, usersError } = storeToRefs(authStore)
 const updatingUserId = ref(null)
 const roles = ['admin', 'moderador', 'user']
 
-// --- [NUEVA LÓGICA PARA CONTROLAR EL DROPDOWN] ---
-const openDropdownUid = ref(null) // Guarda el UID del menú que está abierto
-const dropdownRefs = ref({}) // Guarda las referencias a los elementos del DOM
+const openDropdownUid = ref(null)
+const dropdownRefs = ref({})
 
 const toggleDropdown = (uid) => {
-  // Si el menú que se clickeó ya estaba abierto, ciérralo. Si no, ábrelo.
   openDropdownUid.value = openDropdownUid.value === uid ? null : uid
 }
 
 const closeDropdowns = (event) => {
-  // Cierra el menú si se hace clic fuera de él
   if (openDropdownUid.value && !dropdownRefs.value[openDropdownUid.value]?.contains(event.target)) {
     openDropdownUid.value = null
   }
 }
-// ----------------------------------------------------
 
-const getRoleClass = (rol) => {
-  return {
-    'badge text-bg-danger': rol === 'admin',
-    'badge text-bg-warning': rol === 'moderador',
-    'badge text-bg-secondary': rol === 'user',
-  }
-}
+const getRoleClass = (rol) => ({
+  'badge text-bg-danger': rol === 'admin',
+  'badge text-bg-warning': rol === 'moderador',
+  'badge text-bg-secondary': rol === 'user',
+})
 
+// 2. Modificar changeRole para usar las nuevas notificaciones
 const changeRole = async (user, nuevoRol) => {
   if (user.rol === nuevoRol) return
 
-  if (confirm(`¿Estás seguro de que quieres cambiar el rol de ${user.email} a ${nuevoRol}?`)) {
-    openDropdownUid.value = null // Cierra el menú al seleccionar una opción
+  // Reemplazamos el 'confirm' nativo por nuestro diálogo personalizado
+  const confirmed = await showConfirmDialog(
+    `¿Cambiar rol?`,
+    `Estás a punto de cambiar el rol de ${user.email} a "${nuevoRol}".`,
+  )
+
+  if (confirmed) {
+    openDropdownUid.value = null
     updatingUserId.value = user.uid
     const result = await authStore.updateUserRole(user.uid, nuevoRol)
-    if (!result.success) {
-      alert(`Error al actualizar el rol: ${result.error}`)
+
+    // Mostramos notificaciones de éxito o error según el resultado
+    if (result.success) {
+      showSuccessToast('Rol actualizado correctamente.')
+    } else {
+      showErrorToast(`Error: ${result.error}`)
     }
+
     updatingUserId.value = null
   }
 }
@@ -139,18 +147,16 @@ onMounted(() => {
   if (userList.value.length === 0) {
     authStore.fetchAllUsers()
   }
-  // Añade un listener para cerrar los menús al hacer clic en cualquier parte
   document.addEventListener('click', closeDropdowns)
 })
 
 onUnmounted(() => {
-  // Limpia el listener cuando el componente se destruye para evitar fugas de memoria
   document.removeEventListener('click', closeDropdowns)
 })
 </script>
 
 <style scoped>
-/* Tus estilos se mantienen, solo una pequeña adición para el dropdown */
+/* Tus estilos no necesitan cambios */
 .user-management-container {
   padding-bottom: 2rem;
 }
@@ -162,7 +168,6 @@ onUnmounted(() => {
   font-size: 0.9em;
   padding: 0.4em 0.7em;
 }
-/* [MODIFICADO] Asegura que el dropdown se muestre correctamente al usar v-if */
 .dropdown-menu[style],
 .dropdown-menu[v-if] {
   display: block;

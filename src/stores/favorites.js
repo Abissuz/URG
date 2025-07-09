@@ -1,17 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
-// [NUEVO] Se importa 'onSnapshot'
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-  setDoc,
-  onSnapshot,
-} from 'firebase/firestore'
+import { ref } from 'vue'
+import { doc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from 'firebase/firestore'
 import { db, auth } from '@/firebase/config'
 import { onAuthStateChanged } from 'firebase/auth'
+// 1. Importar las notificaciones
+import { showSuccessToast, showErrorToast } from '@/stores/notifications.js'
 
 export const useFavoritesStore = defineStore('favorites', () => {
   // --- ESTADO ---
@@ -19,17 +12,13 @@ export const useFavoritesStore = defineStore('favorites', () => {
   const favoriteEpisodes = ref([])
   const loading = ref(true)
   const userId = ref(null)
-  let unsubscribeFavorites = null // [NUEVO] Para guardar la función de des-suscripción
+  let unsubscribeFavorites = null
 
   // --- ACCIONES ---
-
-  // [MODIFICADO] Esta función ahora se llama 'listenForFavorites' para reflejar su nueva naturaleza
   const listenForFavorites = (uid) => {
-    // Si ya hay una suscripción activa, la cancelamos para evitar duplicados
     if (unsubscribeFavorites) {
       unsubscribeFavorites()
     }
-
     if (!uid) {
       favoritePodcasts.value.clear()
       favoriteEpisodes.value = []
@@ -40,7 +29,6 @@ export const useFavoritesStore = defineStore('favorites', () => {
     loading.value = true
     const userDocRef = doc(db, 'users', uid)
 
-    // [MODIFICADO] Se reemplaza getDoc con onSnapshot
     unsubscribeFavorites = onSnapshot(
       userDocRef,
       (docSnap) => {
@@ -51,46 +39,56 @@ export const useFavoritesStore = defineStore('favorites', () => {
         } else {
           favoritePodcasts.value.clear()
           favoriteEpisodes.value = []
-          // Si el documento no existe, se puede crear aquí si es necesario
-          // setDoc(userDocRef, { favoritos: { podcasts: [], episodios: [] } }, { merge: true });
         }
         loading.value = false
       },
       (error) => {
         console.error('Error escuchando los favoritos:', error)
+        // 2. Notificación si falla la carga de favoritos
+        showErrorToast('No se pudieron cargar tus favoritos')
         loading.value = false
       },
     )
   }
 
-  const togglePodcastFavorite = async (podcastId) => {
+  // 3. Modificado para añadir notificaciones
+  const togglePodcastFavorite = async (podcastId, podcastTitle) => {
     if (!userId.value) return
     const userDocRef = doc(db, 'users', userId.value)
+    const isCurrentlyFavorite = favoritePodcasts.value.has(podcastId)
 
-    if (favoritePodcasts.value.has(podcastId)) {
-      await updateDoc(userDocRef, { 'favoritos.podcasts': arrayRemove(podcastId) })
-      // No es necesario actualizar el estado local, onSnapshot lo hará
-    } else {
-      await updateDoc(userDocRef, { 'favoritos.podcasts': arrayUnion(podcastId) })
-      // No es necesario actualizar el estado local, onSnapshot lo hará
+    try {
+      if (isCurrentlyFavorite) {
+        await updateDoc(userDocRef, { 'favoritos.podcasts': arrayRemove(podcastId) })
+        showSuccessToast(`'${podcastTitle}' eliminado de favoritos`)
+      } else {
+        await updateDoc(userDocRef, { 'favoritos.podcasts': arrayUnion(podcastId) })
+        showSuccessToast(`'${podcastTitle}' añadido a favoritos`)
+      }
+    } catch (error) {
+      console.error('Error al actualizar favoritos de podcast:', error)
+      showErrorToast('No se pudo actualizar tus favoritos')
     }
   }
 
+  // 4. Modificado para añadir notificaciones
   const toggleEpisodeFavorite = async (podcastId, episode) => {
     if (!userId.value || !episode.id) return
     const userDocRef = doc(db, 'users', userId.value)
-
-    // Es crucial que el objeto que guardamos y el que eliminamos sean idénticos.
-    // Buscamos el episodio exacto en el estado local para asegurar consistencia.
     const existingEpisode = favoriteEpisodes.value.find((fav) => fav.id === episode.id)
 
-    if (existingEpisode) {
-      await updateDoc(userDocRef, { 'favoritos.episodios': arrayRemove(existingEpisode) })
-      // No es necesario actualizar el estado local, onSnapshot lo hará
-    } else {
-      const episodeToSave = { ...episode, podcastId: podcastId }
-      await updateDoc(userDocRef, { 'favoritos.episodios': arrayUnion(episodeToSave) })
-      // No es necesario actualizar el estado local, onSnapshot lo hará
+    try {
+      if (existingEpisode) {
+        await updateDoc(userDocRef, { 'favoritos.episodios': arrayRemove(existingEpisode) })
+        showSuccessToast(`Episodio eliminado de favoritos`)
+      } else {
+        const episodeToSave = { ...episode, podcastId: podcastId }
+        await updateDoc(userDocRef, { 'favoritos.episodios': arrayUnion(episodeToSave) })
+        showSuccessToast(`Episodio añadido a favoritos`)
+      }
+    } catch (error) {
+      console.error('Error al actualizar favoritos de episodio:', error)
+      showErrorToast('No se pudo actualizar tus favoritos')
     }
   }
 
@@ -98,10 +96,9 @@ export const useFavoritesStore = defineStore('favorites', () => {
   const isEpisodeFavorite = (episodeId) =>
     favoriteEpisodes.value.some((fav) => fav.id === episodeId)
 
-  // [MODIFICADO] onAuthStateChanged ahora llama a la nueva función de escucha
   onAuthStateChanged(auth, (user) => {
     userId.value = user ? user.uid : null
-    listenForFavorites(userId.value) // Se establece o se limpia el listener
+    listenForFavorites(userId.value)
   })
 
   return {

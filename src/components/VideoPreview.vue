@@ -37,7 +37,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import VideoModal from '@/components/VideoModal.vue' // <-- CAMBIO: Importar el modal
+import VideoModal from '@/components/VideoModal.vue'
+// 1. Importar la notificación de error
+import { showErrorToast } from '@/stores/notifications.js'
 
 const API_KEY = import.meta.env.VITE_APP_YOUTUBE_API_KEY
 const CHANNEL_ID = import.meta.env.VITE_APP_YOUTUBE_CHANNEL_ID
@@ -47,7 +49,6 @@ const videos = ref([])
 const loading = ref(true)
 const error = ref(null)
 
-// --- CAMBIO: Lógica para manejar el estado del modal ---
 const selectedVideoId = ref(null)
 
 const openVideoModal = (videoId) => {
@@ -56,7 +57,6 @@ const openVideoModal = (videoId) => {
 const closeVideoModal = () => {
   selectedVideoId.value = null
 }
-// --- FIN DEL CAMBIO ---
 
 const fetchLatestVideos = async () => {
   loading.value = true
@@ -80,6 +80,8 @@ const fetchLatestVideos = async () => {
   } catch (err) {
     error.value = err.message
     console.error('Error fetching latest videos:', err)
+    // 2. Mostrar la notificación de error al usuario
+    showErrorToast('No se pudieron cargar los videos.')
   } finally {
     loading.value = false
   }

@@ -3,7 +3,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h1 class="mb-0">Panel de Administración</h1>
       <button
-        @click="fetchStats"
+        @click="fetchStats(true)"
         class="btn btn-sm btn-outline-secondary"
         :disabled="loading"
         title="Refrescar datos"
@@ -19,9 +19,8 @@
     </div>
 
     <div v-else-if="error" class="alert alert-danger">
-      <p class="fw-bold">Ocurrió un error al cargar las estadísticas:</p>
-      <code>{{ error }}</code>
-      <button @click="fetchStats" class="btn btn-sm btn-danger mt-2">Reintentar</button>
+      <p class="fw-bold">Ocurrió un error al cargar las estadísticas.</p>
+      <button @click="fetchStats(true)" class="btn btn-sm btn-danger mt-2">Reintentar</button>
     </div>
 
     <div v-else-if="stats">
@@ -104,40 +103,48 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
+// 1. Importar las notificaciones
+import { showSuccessToast, showErrorToast } from '@/stores/notifications.js'
 
-// 1. Conexión con el store de Pinia (nuestra fuente de verdad)
 const authStore = useAuthStore()
-
-// 2. Extraemos las variables del store y les damos un alias para que coincidan con la plantilla
 const { dashboardStats: stats, loadingStats: loading, statsError: error } = storeToRefs(authStore)
 
-// 3. Creamos una función local que simplemente llama a la acción del store
-const fetchStats = () => {
-  authStore.fetchDashboardStats()
+// 2. Modificar fetchStats para manejar las notificaciones
+const fetchStats = async (isManualRefresh = false) => {
+  // Llama a la acción del store. Asumimos que la acción maneja el try/catch internamente
+  // y actualiza los estados 'loading' y 'error'.
+  await authStore.fetchDashboardStats()
+
+  // Después de que la acción termina, revisamos el resultado.
+  if (error.value) {
+    // Si la acción resultó en un error, mostramos una notificación de error.
+    if (isManualRefresh) {
+      // Solo muestra el toast de error en el refresco manual
+      showErrorToast('No se pudieron actualizar los datos.')
+    }
+  } else if (isManualRefresh) {
+    // Si NO hubo error y fue un refresco manual, mostramos la notificación de éxito.
+    showSuccessToast('Estadísticas actualizadas')
+  }
 }
 
-// 4. Lógica para ordenar la tabla (copiada de tu plantilla)
+// ... (Lógica para ordenar la tabla se mantiene igual) ...
 const sortKey = ref('title')
 const sortAsc = ref(true)
-
 const sortedPodcastDetails = computed(() => {
   if (!stats.value || !stats.value.podcastDetails) return []
-
   return [...stats.value.podcastDetails].sort((a, b) => {
     let valA = a[sortKey.value]
     let valB = b[sortKey.value]
-
     if (typeof valA === 'string') {
       valA = valA.toLowerCase()
       valB = valB.toLowerCase()
     }
-
     if (valA < valB) return sortAsc.value ? -1 : 1
     if (valA > valB) return sortAsc.value ? 1 : -1
     return 0
   })
 })
-
 const sortBy = (key) => {
   if (sortKey.value === key) {
     sortAsc.value = !sortAsc.value
@@ -146,22 +153,21 @@ const sortBy = (key) => {
     sortAsc.value = true
   }
 }
-
 const sortIcon = (key) => {
   if (sortKey.value !== key) return 'fa-sort'
   return sortAsc.value ? 'fa-sort-up' : 'fa-sort-down'
 }
 
-// 5. Cuando el componente se monta, busca los datos iniciales
+// 3. Cuando el componente se monta, busca los datos sin mostrar notificación
 onMounted(() => {
-  // Solo busca los datos si no los tenemos ya
   if (!stats.value) {
-    fetchStats()
+    fetchStats(false) // Se llama con 'false' para que no muestre el toast de éxito en la carga inicial
   }
 })
 </script>
 
 <style scoped>
+/* Los estilos no necesitan cambios */
 .dashboard-container {
   background-color: #f8f9fa;
 }

@@ -1,23 +1,24 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-// [MODIFICADO] Se importa 'onSnapshot' y se quita 'getDocs'
 import { collection, onSnapshot, query } from 'firebase/firestore'
 import { db } from '@/firebase/config'
+// 1. Importar las notificaciones necesarias
+import { showInfoToast, showErrorToast } from '@/stores/notifications.js'
 
 export const usePodcastStore = defineStore('podcasts', () => {
   const podcasts = ref([])
   const loading = ref(true)
-  let unsubscribePodcasts = null // Variable para manejar la des-suscripción
+  let unsubscribePodcasts = null
+  // 2. Variable para controlar la carga inicial
+  const isInitialLoad = ref(true)
 
   const listenForPodcasts = () => {
-    // Si ya estamos escuchando, no hacemos nada para evitar duplicados.
     if (unsubscribePodcasts) return
 
     loading.value = true
     const podcastsCollection = collection(db, 'podcasts')
     const q = query(podcastsCollection)
 
-    // [MODIFICADO] Se establece el listener en tiempo real con onSnapshot
     unsubscribePodcasts = onSnapshot(
       q,
       (querySnapshot) => {
@@ -26,21 +27,26 @@ export const usePodcastStore = defineStore('podcasts', () => {
           ...doc.data(),
         }))
 
-        // Se ordenan los podcasts alfabéticamente para mantener la consistencia
         fetchedPodcasts.sort((a, b) => a.title.localeCompare(b.title))
-
         podcasts.value = fetchedPodcasts
         loading.value = false
+
+        // 3. Lógica de notificación de actualización
+        if (isInitialLoad.value) {
+          isInitialLoad.value = false
+        } else {
+          showInfoToast('La lista de podcasts ha sido actualizada')
+        }
       },
       (error) => {
         console.error('Error escuchando los podcasts:', error)
+        // 4. Notificación de error
+        showErrorToast('No se pudieron cargar los podcasts')
         loading.value = false
       },
     )
   }
 
-  // [MODIFICADO] La acción ahora se asegura de que el listener se inicie.
-  // La llamaremos desde App.vue para que los datos estén disponibles en toda la app.
   const initialize = () => {
     listenForPodcasts()
   }

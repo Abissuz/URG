@@ -21,9 +21,8 @@
                   >{{ podcast.title }}</router-link
                 >
               </h5>
-              <!-- Botón de Favorito -->
               <button
-                @click.stop="favoritesStore.togglePodcastFavorite(podcast.id)"
+                @click.stop="favoritesStore.togglePodcastFavorite(podcast.id, podcast.title)"
                 class="btn-favorite"
               >
                 <i
@@ -51,11 +50,13 @@
 <script setup>
 import { computed } from 'vue'
 import { usePodcastStore } from '@/stores/counter'
-import { useFavoritesStore } from '@/stores/favorites' // Se importa el nuevo store
+import { useFavoritesStore } from '@/stores/favorites'
 
 const props = defineProps({ searchQuery: { type: String, default: '' } })
 const podcastStore = usePodcastStore()
-const favoritesStore = useFavoritesStore() // Se inicializa el nuevo store
+const favoritesStore = useFavoritesStore()
+
+// La función local 'handleToggleFavorite' se ha eliminado para evitar duplicidad.
 
 const filteredPodcasts = computed(() => {
   if (!props.searchQuery.trim()) return podcastStore.podcasts
@@ -104,7 +105,6 @@ const truncateDescription = (desc) =>
 .text-primary {
   color: #0d4d98 !important;
 }
-/* Estos estilos son heredados del componente principal, pero puedes añadir específicos si lo necesitas */
 .video-card {
   border: 1px solid #343a405e;
   transition:

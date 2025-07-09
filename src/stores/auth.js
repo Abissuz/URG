@@ -1,4 +1,4 @@
-// src/stores/auth.js - VERSIÓN FINAL Y COMPLETA
+// src/stores/auth.js
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
@@ -6,25 +6,21 @@ import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { db, functions } from '@/firebase/config'
 import { httpsCallable } from 'firebase/functions'
+// 1. Importar las notificaciones
+import { showSuccessToast, showErrorToast } from '@/stores/notifications.js'
 
 export const useAuthStore = defineStore('auth', () => {
   // --- Estado ---
   const user = ref(null)
   const userRole = ref(null)
   const loading = ref(true)
-
   const dashboardStats = ref(null)
   const loadingStats = ref(false)
   const statsError = ref(null)
-
   const userList = ref([])
   const loadingUsers = ref(false)
   const usersError = ref(null)
-
   const hasNewSongRequest = ref(false)
-
-  // --- [CORRECCIÓN] ---
-  // Inicializamos songRequests como un arreglo vacío para evitar errores.
   const songRequests = ref([])
 
   // --- Getters ---
@@ -66,10 +62,13 @@ export const useAuthStore = defineStore('auth', () => {
   const logout = async () => {
     try {
       await signOut(getAuth())
-      // [MEJORA] Al cerrar sesión, limpiamos la lista de peticiones
       songRequests.value = []
+      // 2. Notificación de éxito al cerrar sesión
+      showSuccessToast('Has cerrado sesión. ¡Vuelve pronto!')
     } catch (error) {
       console.error('Error al cerrar sesión:', error)
+      // 3. Notificación de error
+      showErrorToast('No se pudo cerrar la sesión.')
     }
   }
 
@@ -94,7 +93,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const auth = getAuth()
       if (!auth.currentUser) {
-        throw new Error('La sesión no está activa o ha expirado. Intenta iniciar sesión de nuevo.')
+        throw new Error('La sesión no está activa o ha expirado.')
       }
       await auth.currentUser.getIdToken(true)
       const getDashboardStats = httpsCallable(functions, 'getDashboardStats')
@@ -103,6 +102,8 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('Error detallado al obtener estadísticas:', error)
       statsError.value = error.message
+      // 4. Notificación de error al cargar estadísticas
+      showErrorToast('No se pudieron cargar las estadísticas.')
     } finally {
       loadingStats.value = false
     }
@@ -118,6 +119,8 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('Error al obtener la lista de usuarios:', error)
       usersError.value = error.message
+      // 5. Notificación de error al cargar usuarios
+      showErrorToast('No se pudo cargar la lista de usuarios.')
     } finally {
       loadingUsers.value = false
     }
@@ -126,20 +129,23 @@ export const useAuthStore = defineStore('auth', () => {
   const updateUserRole = async (uid, nuevoRol) => {
     try {
       const updateUserRoleCallable = httpsCallable(functions, 'updateUserRole')
-      const result = await updateUserRoleCallable({ uid, nuevoRol })
+      await updateUserRoleCallable({ uid, nuevoRol })
       const userIndex = userList.value.findIndex((user) => user.uid === uid)
       if (userIndex !== -1) {
         userList.value[userIndex].rol = nuevoRol
       }
-      console.log(result.data.message)
+      // NOTA: La lógica de notificación para esta acción ya la pusimos en UserManagementView.vue.
+      // Lo ideal sería moverla aquí. Si lo hicieras, se vería así:
+      // showSuccessToast('Rol de usuario actualizado.');
       return { success: true }
     } catch (error) {
       console.error('Error al actualizar el rol:', error)
+      // Y el error se manejaría aquí también:
+      // showErrorToast(`Error: ${error.message}`);
       return { success: false, error: error.message }
     }
   }
 
-  // --- [NUEVAS] Acciones para manejar las notificaciones ---
   const setHasNewSongRequest = (status) => {
     hasNewSongRequest.value = status
   }
@@ -149,7 +155,7 @@ export const useAuthStore = defineStore('auth', () => {
       hasNewSongRequest.value = false
     }
   }
-  // --- Se exporta todo para que esté disponible en la aplicación ---
+
   return {
     user,
     userRole,
@@ -174,8 +180,6 @@ export const useAuthStore = defineStore('auth', () => {
     hasNewSongRequest,
     setHasNewSongRequest,
     clearNewSongRequest,
-
-    // [NUEVO] Exportamos la nueva variable
     songRequests,
   }
 })

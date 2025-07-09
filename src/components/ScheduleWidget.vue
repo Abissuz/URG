@@ -1,6 +1,5 @@
 <template>
   <div class="schedule-widget-container cronograma-container">
-    <!-- Cabecera con pestañas -->
     <div class="widget-header">
       <h2 class="section-title">Cronograma</h2>
       <div class="view-tabs">
@@ -13,9 +12,7 @@
       </div>
     </div>
 
-    <!-- Contenido del Widget -->
     <div class="widget-content">
-      <!-- Vista "Próximamente" -->
       <div v-if="activeView === 'upcoming'">
         <div v-if="loading" class="text-center py-3">
           <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
@@ -39,12 +36,10 @@
         <p v-else class="text-center text-muted py-3">No hay programas agendados próximamente.</p>
       </div>
 
-      <!-- Vista "Por Día" -->
       <div v-if="activeView === 'byDay'">
         <div class="day-selector">
-          <!-- [MODIFICADO] Ahora itera sobre la lista de días de la semana laboral -->
           <button
-            v-for="(day, index) in weekdays"
+            v-for="day in weekdays"
             :key="day"
             @click="selectedDayIndex = getDayIndex(day)"
             :class="{ active: selectedDayIndex === getDayIndex(day) }"
@@ -71,11 +66,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue' // <-- 1. Añade onUnmounted
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from '@/firebase/config'
+// 1. Importar notificaciones
+import { showInfoToast, showErrorToast } from '@/stores/notifications.js'
 
-// --- ESTADO ---
 const activeView = ref('upcoming')
 const loading = ref(true)
 const schedule = ref({})
@@ -90,29 +86,33 @@ const shortDays = {
   viernes: 'Vie',
   sábado: 'Sáb',
 }
-
 const selectedDayIndex = ref(new Date().getDay())
-
-// --- NUEVO: ESTADO REACTIVO PARA EL TIEMPO ---
 const currentTimeRef = ref(new Date())
 let timeInterval = null
 
-// --- LÓGICA DE DATOS ---
+// 2. Variable para controlar la carga inicial
+const isInitialLoad = ref(true)
+
 onMounted(() => {
-  // Actualiza la hora actual cada minuto para que la lista "Próximamente" sea dinámica
   timeInterval = setInterval(() => {
     currentTimeRef.value = new Date()
-  }, 60000) // 60000ms = 1 minuto
+  }, 60000)
 
   const scheduleRef = doc(db, 'schedule', 'main')
   onSnapshot(
     scheduleRef,
     (docSnap) => {
-      // Log para depurar
-      console.log('✅ ¡Cronograma actualizado desde Firebase!', docSnap.data())
-
       if (docSnap.exists()) {
         schedule.value = docSnap.data()
+
+        // 3. Lógica de notificación de actualización
+        if (isInitialLoad.value) {
+          // Si es la primera vez que se cargan los datos, no hacemos nada.
+          isInitialLoad.value = false
+        } else {
+          // Si no es la primera vez, significa que es una actualización en tiempo real.
+          showInfoToast('El cronograma ha sido actualizado')
+        }
       } else {
         console.warn('Documento de cronograma no encontrado.')
       }
@@ -120,19 +120,20 @@ onMounted(() => {
     },
     (error) => {
       console.error('Error cargando el cronograma:', error)
+      // 4. Lógica de notificación de error
+      showErrorToast('No se pudo cargar el cronograma')
       loading.value = false
     },
   )
 })
 
-// Limpia el intervalo cuando el componente se destruye para evitar fugas de memoria
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval)
   }
 })
 
-// --- FUNCIONES DE AYUDA ---
+// ... (El resto de tus funciones y propiedades computadas se mantienen igual) ...
 const formatTime = (timeStr) => {
   if (!timeStr) return ''
   const [hours, minutes] = timeStr.split(':')
@@ -140,30 +141,21 @@ const formatTime = (timeStr) => {
   date.setHours(hours, minutes, 0)
   return date.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
-
 const getDayIndex = (dayName) => {
   return fullWeek.indexOf(dayName)
 }
-
-// --- PROPIEDADES COMPUTADAS (CORREGIDAS Y MEJORADAS) ---
 const upcomingItems = computed(() => {
-  // Ahora depende de currentTimeRef, que es reactivo
   const now = currentTimeRef.value
   const todayIndex = now.getDay()
   const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes()
-
   let allFutureItems = []
-
   for (let i = 0; i < 7; i++) {
     const dayIndex = (todayIndex + i) % 7
     const dayName = fullWeek[dayIndex]
-
     if (dayName === 'sábado' || dayName === 'domingo') {
       continue
     }
-
     const itemsForDay = schedule.value[dayName] || []
-
     const filteredItems = itemsForDay
       .map((item) => {
         const [hours, minutes] = item.time.split(':')
@@ -174,27 +166,22 @@ const upcomingItems = computed(() => {
       })
       .map((item) => ({
         ...item,
-        dayIndex: dayIndex, // Corregido para que la ordenación funcione
+        dayIndex: dayIndex,
         formattedTime: formatTime(item.time),
         dayLabel: i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : shortDays[dayName],
       }))
-
     allFutureItems.push(...filteredItems)
   }
-
   allFutureItems.sort((a, b) => {
     let dayDiffA = a.dayIndex - todayIndex
     let dayDiffB = b.dayIndex - todayIndex
     if (dayDiffA < 0) dayDiffA += 7
     if (dayDiffB < 0) dayDiffB += 7
-
     if (dayDiffA !== dayDiffB) return dayDiffA - dayDiffB
     return a.timeInMinutes - b.timeInMinutes
   })
-
   return allFutureItems.slice(0, 6)
 })
-
 const itemsForSelectedDay = computed(() => {
   const dayName = fullWeek[selectedDayIndex.value]
   const items = schedule.value[dayName] || []
@@ -203,6 +190,7 @@ const itemsForSelectedDay = computed(() => {
 </script>
 
 <style scoped>
+/* Tus estilos no necesitan cambios */
 .cronograma-container {
   width: 50%;
 }
@@ -214,7 +202,6 @@ const itemsForSelectedDay = computed(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   padding: 0.5rem;
 }
-
 .widget-header {
   display: flex;
   justify-content: space-between;
@@ -222,21 +209,18 @@ const itemsForSelectedDay = computed(() => {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid #e0e0e0;
 }
-
 .section-title {
   color: #0d4b94;
   font-weight: 700;
   font-size: 1.5rem;
   margin: 0;
 }
-
 .view-tabs {
   display: flex;
   background-color: #e9ecef;
   border-radius: 50px;
   padding: 4px;
 }
-
 .view-tabs button {
   background: transparent;
   border: none;
@@ -248,27 +232,20 @@ const itemsForSelectedDay = computed(() => {
   color: #495057;
   transition: all 0.3s ease;
 }
-
 .view-tabs button.active {
   background-color: white;
   color: #0d4d98;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-
-/* .widget-content {
-  padding: 1rem;
-} */
-
 .day-selector {
   display: flex;
   justify-content: center;
-  flex-wrap: wrap; /* [NUEVO] Permite que los botones pasen a la siguiente línea */
+  flex-wrap: wrap;
   background-color: #e9ecef;
   border-radius: 8px;
   padding: 6px;
   margin-bottom: 1rem;
 }
-
 .day-selector button {
   flex-grow: 1;
   text-align: center;
@@ -282,18 +259,15 @@ const itemsForSelectedDay = computed(() => {
   text-transform: uppercase;
   transition: all 0.3s ease;
 }
-
 .day-selector button.active {
   background-color: #0d4d98;
   color: white;
 }
-
 .schedule-list {
   list-style: none;
   padding: 0;
   margin: 0;
 }
-
 .schedule-item {
   display: flex;
   align-items: center;
@@ -304,7 +278,6 @@ const itemsForSelectedDay = computed(() => {
 .schedule-item:last-child {
   border-bottom: none;
 }
-
 .item-time {
   font-weight: bold;
   font-size: 0.9em;
@@ -312,14 +285,12 @@ const itemsForSelectedDay = computed(() => {
   width: 80px;
   flex-shrink: 0;
 }
-
 .item-details {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   line-height: 1.3;
 }
-
 .item-title {
   font-weight: 600;
   white-space: nowrap;
@@ -327,12 +298,10 @@ const itemsForSelectedDay = computed(() => {
   text-overflow: ellipsis;
   color: #343a40;
 }
-
 .item-host {
   font-size: 0.85em;
   color: #6c757d;
 }
-
 .upcoming-item .item-time-day {
   display: flex;
   flex-direction: column;
@@ -371,12 +340,10 @@ const itemsForSelectedDay = computed(() => {
     width: 100%;
   }
 }
-/* [NUEVO] Estilos para el responsive */
 @media screen and (max-width: 768px) {
   .item-time {
     width: 70px;
   }
-
   .upcoming-item .item-time-day {
     width: 55px;
   }

@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, onUnmounted } from 'vue'
+// 1. Importar las notificaciones
+import { showSuccessToast, showErrorToast } from '@/stores/notifications.js'
 
 export const usePlayerStore = defineStore('player', () => {
-  // --- ESTADO CENTRALIZADO ---
+  // --- ESTADO ---
   const audioElement = ref(null)
   const isPlaying = ref(false)
   const isMuted = ref(false)
@@ -13,11 +15,12 @@ export const usePlayerStore = defineStore('player', () => {
 
   let eventSource = null
   let songTimer = null
+  let sseErrorNotified = false // Para evitar spam de notificaciones de error
 
   const liveStreamUrl = 'https://stream.zeno.fm/xmah2zunhgmtv'
   const metadataUrl = 'https://api.zeno.fm/mounts/metadata/subscribe/xmah2zunhgmtv'
 
-  // --- ACCIONES CENTRALIZADAS ---
+  // --- ACCIONES ---
   const init = (audioTag) => {
     if (!audioElement.value) {
       audioElement.value = audioTag
@@ -29,27 +32,42 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
-  const playOnDemandTrack = (episode) => {
+  const playOnDemandTrack = async (episode) => {
     if (audioElement.value) audioElement.value.pause()
     isLiveStreaming.value = false
     currentTrack.value = { title: episode.title, artist: 'Podcast' }
     audioElement.value.src = episode.audioURL
-    audioElement.value.play().catch(console.error)
-    startSongTimer()
+    try {
+      await audioElement.value.play()
+      // 2. Notificación de éxito al cambiar a un podcast
+      showSuccessToast(`Reproduciendo: ${episode.title}`)
+      startSongTimer()
+    } catch (error) {
+      console.error('Error al reproducir podcast:', error)
+      // 3. Notificación de error si no se puede reproducir
+      showErrorToast('No se pudo reproducir el episodio.')
+    }
   }
 
-  const switchToLiveStream = () => {
+  const switchToLiveStream = async () => {
     if (audioElement.value) audioElement.value.pause()
     isLiveStreaming.value = true
-    currentTrack.value = { title: 'Cargando en vivo...', artist: 'UNIMAR RADIO' } // Título temporal
+    currentTrack.value = { title: 'Cargando en vivo...', artist: 'UNIMAR RADIO' }
     audioElement.value.src = `${liveStreamUrl}?t=${Date.now()}`
-    audioElement.value.play().catch(console.error)
-    startSongTimer()
-    // LA SOLUCIÓN: Forzamos la reconexión para obtener los metadatos al instante.
-    connectSSE()
+    try {
+      await audioElement.value.play()
+      // 4. Notificación de éxito al cambiar a la radio
+      showSuccessToast('Sintonizando la transmisión en vivo')
+      startSongTimer()
+      connectSSE()
+    } catch (error) {
+      console.error('Error al conectar al stream en vivo:', error)
+      // 5. Notificación de error si no se puede conectar
+      showErrorToast('No se pudo conectar a la radio en vivo.')
+    }
   }
 
-  const togglePlay = () => {
+  const togglePlay = async () => {
     if (!audioElement.value) return
     if (isPlaying.value) {
       audioElement.value.pause()
@@ -57,7 +75,13 @@ export const usePlayerStore = defineStore('player', () => {
       if (isLiveStreaming.value) {
         audioElement.value.src = `${liveStreamUrl}?t=${Date.now()}`
       }
-      audioElement.value.play().catch(console.error)
+      try {
+        await audioElement.value.play()
+      } catch (error) {
+        console.error('Error de reproducción:', error)
+        // 6. Notificación de error genérica de reproducción
+        showErrorToast('Error de reproducción. Revisa tu conexión.')
+      }
     }
   }
 
@@ -94,10 +118,11 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   const connectSSE = () => {
-    if (eventSource) eventSource.close() // Cierra cualquier conexión anterior
+    if (eventSource) eventSource.close()
     eventSource = new EventSource(metadataUrl)
     eventSource.onmessage = (event) => {
       if (isLiveStreaming.value) {
+        sseErrorNotified = false // Se resetea el flag de error si la conexión es exitosa
         try {
           const newTrack = parseMetadata(JSON.parse(event.data).streamTitle)
           if (newTrack && newTrack.title !== currentTrack.value.title) {
@@ -109,7 +134,14 @@ export const usePlayerStore = defineStore('player', () => {
         }
       }
     }
-    eventSource.onerror = () => setTimeout(connectSSE, 5000)
+    eventSource.onerror = () => {
+      // 7. Notificación de error de metadatos (solo una vez para no molestar)
+      if (!sseErrorNotified) {
+        showErrorToast('Error de conexión con los metadatos.')
+        sseErrorNotified = true
+      }
+      setTimeout(connectSSE, 5000)
+    }
   }
 
   onUnmounted(() => {
