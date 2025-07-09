@@ -2,7 +2,6 @@
   <div class="container-fluid py-4">
     <h1 class="text-center mb-4 text-primary">Programas</h1>
 
-    <!-- Interruptor de Contenido (Toggle Switch) -->
     <div class="view-toggle-container">
       <div class="toggle-switch">
         <button @click="setActiveView('videos')" :class="{ active: activeView === 'videos' }">
@@ -15,7 +14,6 @@
       </div>
     </div>
 
-    <!-- Barra de búsqueda -->
     <div class="mb-4 position-relative busca">
       <input
         v-model="searchQuery"
@@ -27,7 +25,6 @@
       <img src="@/assets/img/lupa.png" class="lupa" alt="Buscar" />
     </div>
 
-    <!-- Vista de Videos -->
     <div v-if="activeView === 'videos'">
       <div v-if="videoLoading" class="text-center py-5">
         <div class="spinner-border text-warning" role="status"></div>
@@ -38,25 +35,23 @@
         <button @click="fetchAllVideos" class="btn btn-primary mt-2">Reintentar</button>
       </div>
       <div v-else class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-        <div v-for="video in paginatedVideos" :key="video.id" class="col">
-          <a
-            :href="`https://www.youtube.com/watch?v=${video.id}`"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-decoration-none"
-          >
-            <div class="card h-100 shadow-sm video-card">
-              <div class="thumbnail-wrapper">
-                <img :src="video.thumbnail" class="card-img-top" :alt="video.title" />
-              </div>
-              <div class="card-body">
-                <h5 class="card-title text-primary">{{ video.title }}</h5>
-              </div>
-              <div class="card-footer bg-transparent border-top-0">
-                <small class="text-muted">Publicado: {{ formatDate(video.publishedAt) }}</small>
-              </div>
+        <div
+          v-for="video in paginatedVideos"
+          :key="video.id"
+          @click="openVideoModal(video.id)"
+          class="col"
+        >
+          <div class="card h-100 shadow-sm video-card">
+            <div class="thumbnail-wrapper">
+              <img :src="video.thumbnail" class="card-img-top" :alt="video.title" />
             </div>
-          </a>
+            <div class="card-body">
+              <h5 class="card-title text-primary">{{ video.title }}</h5>
+            </div>
+            <div class="card-footer bg-transparent border-top-0">
+              <small class="text-muted">Publicado: {{ formatDate(video.publishedAt) }}</small>
+            </div>
+          </div>
         </div>
       </div>
       <nav v-if="videoTotalPages > 1 && !videoLoading" aria-label="Page navigation">
@@ -84,22 +79,21 @@
       </nav>
     </div>
 
-    <!-- Vista de Podcasts -->
     <div v-else-if="activeView === 'podcasts'">
       <PodcastGrid :search-query="searchQuery" />
     </div>
   </div>
+
+  <VideoModal v-if="selectedVideoId" :video-id="selectedVideoId" @close="closeVideoModal" />
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, inject } from 'vue' // <-- 1. Importa 'inject'
+import { ref, onMounted, computed, watch, inject } from 'vue'
 import { useRoute } from 'vue-router'
 import PodcastGrid from '@/components/PodcastGrid.vue'
+import VideoModal from '@/components/VideoModal.vue' // <-- CAMBIO: Importar el modal
 
-// 2. "Pide prestada" la función que App.vue está ofreciendo
 const scrollTop = inject('scrollTop')
-
-// --- El resto de tu script se mantiene igual ---
 const route = useRoute()
 const activeView = ref('videos')
 const searchQuery = ref('')
@@ -113,7 +107,7 @@ const setViewFromQuery = (query) => {
   if (query.view === 'podcasts') {
     activeView.value = 'podcasts'
   } else {
-    activeView.value = 'videos' // Por defecto a videos si el parámetro es otro o no existe
+    activeView.value = 'videos'
   }
 }
 
@@ -134,6 +128,17 @@ const allVideos = ref([])
 const videoLoading = ref(true)
 const videoError = ref(null)
 const videoCurrentPage = ref(1)
+
+// --- CAMBIO: Lógica para manejar el estado del modal ---
+const selectedVideoId = ref(null)
+
+const openVideoModal = (videoId) => {
+  selectedVideoId.value = videoId
+}
+const closeVideoModal = () => {
+  selectedVideoId.value = null
+}
+// --- FIN DEL CAMBIO ---
 
 const filteredVideos = computed(() => {
   if (!searchQuery.value.trim()) return allVideos.value
@@ -221,8 +226,6 @@ const fetchAllVideos = async () => {
 const goToVideoPage = (page) => {
   if (page >= 1 && page <= videoTotalPages.value) {
     videoCurrentPage.value = page
-
-    // 3. Usa la función inyectada. ¡Ahora funcionará!
     if (scrollTop) {
       scrollTop()
     }
@@ -238,21 +241,16 @@ onMounted(() => {
 
 <style scoped>
 /* Tus estilos no necesitan cambios */
-/* Contenedor para la imagen y el ícono */
 .thumbnail-wrapper {
-  position: relative; /* Clave para posicionar el ícono de play encima */
+  position: relative;
   display: block;
 }
-
-/* El ícono de 'Play' (usando un pseudo-elemento ::after) */
 .thumbnail-wrapper::after {
-  content: ''; /* Requerido para que se muestre el pseudo-elemento */
+  content: '';
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%); /* Centrado perfecto */
-
-  /* Apariencia del ícono */
+  transform: translate(-50%, -50%);
   width: 60px;
   height: 60px;
   background-color: rgba(0, 0, 0, 0.5);
@@ -261,19 +259,13 @@ onMounted(() => {
   background-position: center;
   background-size: 50%;
   border-radius: 50%;
-
-  /* Transición suave */
   transition:
     transform 0.2s ease,
     background-color 0.2s ease;
-
-  /* El ícono está presente pero es sutil */
   opacity: 0.8;
 }
-
-/* Efecto al pasar el cursor sobre la tarjeta de video */
 .video-card:hover .thumbnail-wrapper::after {
-  transform: translate(-50%, -50%) scale(1.1); /* Se agranda un poco */
+  transform: translate(-50%, -50%) scale(1.1);
   background-color: rgb(251 136 0 / 65%);
   opacity: 1;
 }
@@ -361,7 +353,6 @@ onMounted(() => {
   transform: translateY(-5px) scale(1.03);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
-
 .card-title {
   color: #f8f9fa;
 }

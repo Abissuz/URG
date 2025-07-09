@@ -294,20 +294,20 @@ onMounted(() => {
   text-align: center;
 }
 .details-cover {
-  width: 150px; /* Tamaño adaptado al nuevo espacio */
-  height: 150px;
+  width: 220px;
+  height: 220px;
   border-radius: 8px;
   object-fit: cover;
   margin-bottom: 1rem;
 }
 /* Reutilizando estilos existentes para mantener coherencia */
 .details-title {
-  font-weight: 700; /* Más grueso como el header */
-  font-size: 1.2rem;
+  font-weight: 900;
+  font-size: 1.5rem;
   color: #343a40;
 }
 .details-artist {
-  font-size: 0.9rem;
+  font-size: 1.1rem;
   color: #6c757d;
   margin-bottom: 1.5rem;
 }

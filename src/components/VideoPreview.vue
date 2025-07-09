@@ -1,29 +1,23 @@
 <template>
   <div class="video-preview-container">
-    <!-- Cabecera de la sección -->
     <div class="section-header">
       <h2 class="section-title">Programas Destacados</h2>
-      <router-link to="/programas" class="see-all-link">Ver todos &rarr;</router-link>
+      <router-link to="/programas" class="see-all-link">Ver todos →</router-link>
     </div>
 
-    <!-- Estado de carga -->
     <div v-if="loading" class="text-center py-4">
       <div class="spinner-border text-primary" role="status"></div>
     </div>
 
-    <!-- Mensaje de error -->
     <div v-else-if="error" class="alert alert-dark text-center">
       <p class="mb-0">⚠️ No se pudieron cargar los videos.</p>
     </div>
 
-    <!-- Cuadrícula de videos -->
     <div v-else class="video-grid">
-      <a
+      <div
         v-for="video in videos"
         :key="video.id"
-        :href="'https://www.youtube.com/watch?v=' + video.id"
-        target="_blank"
-        rel="noopener noreferrer"
+        @click="openVideoModal(video.id)"
         class="text-decoration-none"
       >
         <div class="video-card">
@@ -34,13 +28,16 @@
             <h6 class="video-title">{{ video.title }}</h6>
           </div>
         </div>
-      </a>
+      </div>
     </div>
   </div>
+
+  <VideoModal v-if="selectedVideoId" :video-id="selectedVideoId" @close="closeVideoModal" />
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import VideoModal from '@/components/VideoModal.vue' // <-- CAMBIO: Importar el modal
 
 const API_KEY = import.meta.env.VITE_APP_YOUTUBE_API_KEY
 const CHANNEL_ID = import.meta.env.VITE_APP_YOUTUBE_CHANNEL_ID
@@ -49,6 +46,17 @@ const UPLOADS_PLAYLIST_ID = CHANNEL_ID ? `UU${CHANNEL_ID.substring(2)}` : null
 const videos = ref([])
 const loading = ref(true)
 const error = ref(null)
+
+// --- CAMBIO: Lógica para manejar el estado del modal ---
+const selectedVideoId = ref(null)
+
+const openVideoModal = (videoId) => {
+  selectedVideoId.value = videoId
+}
+const closeVideoModal = () => {
+  selectedVideoId.value = null
+}
+// --- FIN DEL CAMBIO ---
 
 const fetchLatestVideos = async () => {
   loading.value = true
@@ -81,24 +89,20 @@ onMounted(fetchLatestVideos)
 </script>
 
 <style scoped>
+/* Tus estilos no necesitan cambios */
 .video-preview-container {
   font-family: 'Sulphur Point', sans-serif;
 }
-/* Contenedor para la imagen y el ícono */
 .thumbnail-wrapper {
-  position: relative; /* Clave para posicionar el ícono de play encima */
+  position: relative;
   display: block;
 }
-
-/* El ícono de 'Play' (usando un pseudo-elemento ::after) */
 .thumbnail-wrapper::after {
-  content: ''; /* Requerido para que se muestre el pseudo-elemento */
+  content: '';
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%); /* Centrado perfecto */
-
-  /* Apariencia del ícono */
+  transform: translate(-50%, -50%);
   width: 60px;
   height: 60px;
   background-color: rgba(0, 0, 0, 0.5);
@@ -107,19 +111,13 @@ onMounted(fetchLatestVideos)
   background-position: center;
   background-size: 50%;
   border-radius: 50%;
-
-  /* Transición suave */
   transition:
     transform 0.2s ease,
     background-color 0.2s ease;
-
-  /* El ícono está presente pero es sutil */
   opacity: 0.8;
 }
-
-/* Efecto al pasar el cursor sobre la tarjeta de video */
 .video-card:hover .thumbnail-wrapper::after {
-  transform: translate(-50%, -50%) scale(1.1); /* Se agranda un poco */
+  transform: translate(-50%, -50%) scale(1.1);
   background-color: rgb(251 136 0 / 65%);
   opacity: 1;
 }
@@ -132,31 +130,26 @@ onMounted(fetchLatestVideos)
   border-bottom: 1px solid #9b9b9b59;
   padding: 0 1.5rem;
 }
-
 .section-title {
   color: #0d4b94;
   font-weight: 700;
   font-size: 1.5rem;
 }
-
 .see-all-link {
   color: #0d4d98;
   text-decoration: none;
   font-weight: 600;
   transition: color 0.2s ease;
 }
-
 .see-all-link:hover {
   color: #ff8a00;
 }
-
 .video-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
   padding: 0 1.5rem 1.5rem 1.5rem;
 }
-
 .video-card {
   border-radius: 8px;
   overflow: hidden;
@@ -166,36 +159,31 @@ onMounted(fetchLatestVideos)
   cursor: pointer;
   border: 1px solid #343a405b;
 }
-
 .video-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
 }
-
 .video-thumbnail {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
   display: block;
 }
-
 .video-info {
   padding: 1rem;
   color: #0d4d98 !important;
 }
-
 .video-title {
   color: #0d4d98 !important;
   font-weight: 600;
   margin: 0;
-  /* Lógica para truncar texto largo */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 @media screen and (max-width: 1310px) {
   .video-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Responsive por defecto */
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 }
 </style>
