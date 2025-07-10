@@ -117,10 +117,17 @@
               </button>
             </div>
             <div v-if="episodesLoading" class="loading-indicator-small">Cargando episodios...</div>
-            <ul v-else-if="episodes.length > 0" class="episode-list">
+
+            <div v-if="episodes.length > 0" class="episode-list-header">
+              <span>Episodio</span>
+              <span class="text-center">Comentarios</span>
+              <span class="text-center">Eliminar</span>
+            </div>
+
+            <ul v-if="episodes.length > 0" class="episode-list">
               <li v-for="episode in episodes" :key="episode.id" class="episode-item">
                 <span class="episode-title">{{ episode.title }}</span>
-                <div class="episode-actions">
+                <div class="action-cell">
                   <button
                     @click="toggleComments(episode)"
                     type="button"
@@ -132,6 +139,8 @@
                   >
                     <span class="toggle-knob"></span>
                   </button>
+                </div>
+                <div class="action-cell">
                   <button
                     @click="deleteEpisode(episode.id)"
                     type="button"
@@ -312,7 +321,6 @@ const naturalSort = (a, b) =>
 onMounted(() => {
   if (authStore.isAdmin) activeAdminView.value = 'dashboard'
   else if (authStore.isModerator) activeAdminView.value = 'requests'
-
   const podcastsCollection = collection(db, 'podcasts')
   onSnapshot(
     podcastsCollection,
@@ -327,7 +335,6 @@ onMounted(() => {
     },
     (error) => showErrorToast('Error al cargar podcasts.'),
   )
-
   const scheduleRef = doc(db, 'schedule', 'main')
   onSnapshot(
     scheduleRef,
@@ -346,7 +353,6 @@ onMounted(() => {
     (error) => showErrorToast('Error al cargar cronograma.'),
   )
 })
-
 watch(
   selectedPodcastInfo,
   (newVal) => {
@@ -376,7 +382,6 @@ watch(
   },
   { deep: true },
 )
-
 const viewRequests = () => {
   activeAdminView.value = 'requests'
   authStore.clearNewSongRequest()
@@ -517,7 +522,7 @@ const toggleComments = async (episode) => {
     await updateDoc(doc(db, 'podcasts', form.value.id, 'episodes', episode.id), {
       commentsEnabled: !episode.commentsEnabled,
     })
-    showSuccessToast(`Comentarios ${episode.commentsEnabled ? 'deshabilitados' : 'habilitados'}.`)
+    showSuccessToast(`Comentarios ${!episode.commentsEnabled ? 'habilitados' : 'deshabilitados'}.`)
   } catch (error) {
     showErrorToast('No se pudo actualizar el estado.')
   }
@@ -576,7 +581,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
 </script>
 
 <style scoped>
-/* Estilos unificados y consistentes */
 .admin-panel {
   padding: 2rem;
   background-color: #f4f6f8;
@@ -610,6 +614,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   color: #555;
   border-bottom: 3px solid transparent;
   transition: all 0.2s;
+  position: relative;
 }
 .admin-tabs button:hover {
   color: #0d4d98;
@@ -618,13 +623,12 @@ const removeScheduleItem = async (day, itemToRemove) => {
   color: #0d4d98;
   border-bottom-color: #0d4d98;
 }
-
 .panel-layout,
 .schedule-manager-layout {
   display: flex;
   gap: 2rem;
-  flex-grow: 1; /* Permite que el layout ocupe el espacio restante */
-  overflow: hidden; /* Evita el scroll del contenedor principal */
+  flex-grow: 1;
+  overflow: hidden;
 }
 .list-column,
 .form-column,
@@ -633,7 +637,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   background-color: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  overflow-y: auto; /* El scroll está en cada columna individual */
+  overflow-y: auto;
   height: 100%;
 }
 .list-column,
@@ -652,10 +656,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   justify-content: space-between;
   align-items: center;
 }
-.admin-tabs button {
-  position: relative; /* Asegura que el posicionamiento del punto funcione */
-}
-
 .notification-dot-tab {
   position: absolute;
   top: 8px;
@@ -666,7 +666,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   border-radius: 50%;
   animation: pulse-sm 1.5s infinite;
 }
-
 @keyframes pulse-sm {
   0% {
     box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
@@ -683,7 +682,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
 }
 .add-new-btn {
   background-color: #0d4d98;
-  color: white;
+  color: #fff;
   border: none;
   border-radius: 50%;
   width: 32px;
@@ -716,8 +715,8 @@ const removeScheduleItem = async (day, itemToRemove) => {
 }
 .podcast-list-item.active {
   background-color: #0075ffa8;
-  color: white;
-  font-weight: bold;
+  color: #fff;
+  font-weight: 700;
 }
 .form-placeholder {
   display: flex;
@@ -774,12 +773,12 @@ const removeScheduleItem = async (day, itemToRemove) => {
 .delete-podcast-btn,
 .cancel-btn,
 .add-episode-btn {
-  color: white;
+  color: #fff;
   border: none;
   padding: 0.75rem 1.5rem;
   border-radius: 6px;
   font-size: 1rem;
-  font-weight: bold;
+  font-weight: 700;
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -807,8 +806,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   padding: 0.5rem 1rem;
   background-color: #007bff;
 }
-
-/* --- ESTILOS COMPLETOS PARA LA SECCIÓN DE EPISODIOS --- */
 .episodes-section {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
@@ -828,25 +825,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   list-style: none;
   padding: 0;
   margin: 0;
-}
-.episode-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 0.25rem;
-  border-bottom: 1px solid #f0f0f0;
-}
-.episode-item:last-child {
-  border-bottom: none;
-}
-.episode-title {
-  flex-grow: 1;
-  padding-right: 1rem;
-}
-.episode-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
 }
 .delete-episode-btn {
   background: none;
@@ -880,7 +858,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   left: 2px;
   width: 20px;
   height: 20px;
-  background-color: white;
+  background-color: #fff;
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   transition: transform 0.3s ease;
@@ -894,8 +872,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   text-align: center;
   color: #888;
 }
-
-/* --- ESTILO PARA EL BOTÓN DE VOLVER (RESPONSIVE) --- */
 .back-to-list-btn {
   display: none;
   background: none;
@@ -910,8 +886,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
 .back-to-list-btn:hover {
   background-color: #f0f0f0;
 }
-
-/* --- ESTILOS COMPLETOS PARA EL MODAL DE AÑADIR EPISODIO --- */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -925,7 +899,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   z-index: 1000;
 }
 .modal-content {
-  background: #ffffff;
+  background: #fff;
   padding: 2rem;
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
@@ -970,8 +944,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
 .modal-actions .save-btn:hover {
   background-color: #218838;
 }
-
-/* --- ESTILOS COMPLETOS PARA EL GESTOR DE CRONOGRAMA --- */
 .schedule-manager-layout {
   padding: 0;
 }
@@ -995,7 +967,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
 }
 .day-tab-item.active {
   background-color: #0075ffa8;
-  color: white;
+  color: #fff;
 }
 .schedule-content {
   display: flex;
@@ -1022,7 +994,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   flex-grow: 1;
 }
 .item-time {
-  font-weight: bold;
+  font-weight: 700;
   font-size: 0.9em;
   color: #0d4d98;
   flex-shrink: 0;
@@ -1071,16 +1043,12 @@ const removeScheduleItem = async (day, itemToRemove) => {
   align-items: center;
   justify-content: center;
 }
-
-/* === MEDIA QUERIES PARA RESPONSIVIDAD === */
 @media (max-width: 992px) {
   .admin-panel {
     overflow-y: auto;
     padding: 1rem;
     height: auto;
   }
-
-  /* LÓGICA DE "MODAL" PARA GESTIÓN DE PODCASTS */
   .panel-layout {
     height: auto;
     overflow: visible;
@@ -1104,8 +1072,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   .back-to-list-btn {
     display: inline-block;
   }
-
-  /* Estilos responsivos para gestor de cronograma */
   .schedule-manager-layout {
     flex-direction: column;
     height: auto;
@@ -1123,7 +1089,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   .day-tab-item {
     white-space: nowrap;
   }
-
   .list-column,
   .form-column,
   .day-tabs,
@@ -1133,7 +1098,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
     flex-basis: auto !important;
   }
 }
-
 @media (max-width: 768px) {
   .admin-panel {
     padding: 0.5rem;
@@ -1163,5 +1127,43 @@ const removeScheduleItem = async (day, itemToRemove) => {
   .add-schedule-form {
     grid-template-columns: 1fr;
   }
+}
+
+/* [AÑADIDO] Estilos para la cabecera de la lista de episodios */
+.episode-list-header,
+.episode-item {
+  display: grid;
+  grid-template-columns: 1fr 120px 80px;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0.25rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.episode-list-header {
+  padding: 0.5rem 0.25rem;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+  color: #6c757d;
+  border-bottom: 2px solid #e0e0e0;
+  text-transform: uppercase;
+  font-size: clamp(0.7rem, 1.5vw, 0.8rem);
+}
+.episode-item:last-child {
+  border-bottom: none;
+}
+.episode-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-grow: 1; /* Esto ya no es necesario con Grid, pero no daña */
+  padding-right: 1rem;
+}
+.action-cell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.text-center {
+  text-align: center;
 }
 </style>

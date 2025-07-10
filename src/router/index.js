@@ -4,7 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import HomeView from '@/views/Home.vue'
 import UpdateContentView from '@/views/UpdateContentView.vue'
-
+import FAQView from '@/views/FAQView.vue' // Importa la nueva vista
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -45,6 +45,11 @@ const router = createRouter({
       name: 'actualizar-contenido',
       component: UpdateContentView,
       meta: { requiresAuth: true, requiredRole: ['admin', 'moderador'] },
+    },
+    {
+      path: '/faq',
+      name: 'faq',
+      component: FAQView,
     },
   ],
 })

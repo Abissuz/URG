@@ -73,6 +73,17 @@
               </router-link>
             </li>
             <li>
+              <router-link to="/faq" class="nav-item" active-class="active">
+                <svg viewBox="0 0 24 24" class="nav-icon">
+                  <path
+                    fill="currentColor"
+                    d="M11.07,12.85c0.77-1.39,2.25-2.21,3.11-3.44c0.91-1.29,0.4-3.7-2.18-3.7c-1.69,0-2.52,1.28-2.87,2.34L6.54,6.96 C7.25,4.83,9.18,3,12,3c2.31,0,3.86,0.67,4.96,1.96c1.1,1.29,1.4,3.34,0.3,5.15c-0.78,1.26-2.07,2-2.87,3.19 c-1.32,1.94-0.89,4.2-2.39,4.2c-0.96,0-1.78-0.75-1.78-1.78C10,14.64,10.27,13.71,11.07,12.85z M10,21h4v-4h-4V21z"
+                  ></path>
+                </svg>
+                <span>FAQ</span>
+              </router-link>
+            </li>
+            <li>
               <router-link to="/favoritos" class="nav-item" active-class="active">
                 <svg viewBox="0 0 24 24" class="nav-icon">
                   <path
