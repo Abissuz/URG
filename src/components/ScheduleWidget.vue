@@ -69,28 +69,35 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from '@/firebase/config'
-// 1. Importar notificaciones
 import { showInfoToast, showErrorToast } from '@/stores/notifications.js'
 
 const activeView = ref('upcoming')
 const loading = ref(true)
 const schedule = ref({})
+// La semana completa se mantiene para cálculos internos con new Date().getDay()
 const fullWeek = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sábado']
+// La lista de días laborables se mantiene, ya es correcta
 const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+
+// [MODIFICADO] Se eliminan los días del fin de semana que no se usarán
 const shortDays = {
-  domingo: 'Dom',
   lunes: 'Lun',
   martes: 'Mar',
   miercoles: 'Mié',
   jueves: 'Jue',
   viernes: 'Vie',
-  sábado: 'Sáb',
 }
-const selectedDayIndex = ref(new Date().getDay())
+
+// [MODIFICADO] Función para establecer el día por defecto
+const getInitialDayIndex = () => {
+  const today = new Date().getDay() // 0 para Domingo, 6 para Sábado
+  // Si es fin de semana, por defecto muestra Lunes (índice 1)
+  return today === 0 || today === 6 ? 1 : today
+}
+
+const selectedDayIndex = ref(getInitialDayIndex())
 const currentTimeRef = ref(new Date())
 let timeInterval = null
-
-// 2. Variable para controlar la carga inicial
 const isInitialLoad = ref(true)
 
 onMounted(() => {
@@ -104,13 +111,9 @@ onMounted(() => {
     (docSnap) => {
       if (docSnap.exists()) {
         schedule.value = docSnap.data()
-
-        // 3. Lógica de notificación de actualización
         if (isInitialLoad.value) {
-          // Si es la primera vez que se cargan los datos, no hacemos nada.
           isInitialLoad.value = false
         } else {
-          // Si no es la primera vez, significa que es una actualización en tiempo real.
           showInfoToast('El cronograma ha sido actualizado')
         }
       } else {
@@ -120,7 +123,6 @@ onMounted(() => {
     },
     (error) => {
       console.error('Error cargando el cronograma:', error)
-      // 4. Lógica de notificación de error
       showErrorToast('No se pudo cargar el cronograma')
       loading.value = false
     },
@@ -133,7 +135,6 @@ onUnmounted(() => {
   }
 })
 
-// ... (El resto de tus funciones y propiedades computadas se mantienen igual) ...
 const formatTime = (timeStr) => {
   if (!timeStr) return ''
   const [hours, minutes] = timeStr.split(':')
@@ -141,29 +142,34 @@ const formatTime = (timeStr) => {
   date.setHours(hours, minutes, 0)
   return date.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
+
 const getDayIndex = (dayName) => {
   return fullWeek.indexOf(dayName)
 }
+
+// La lógica de upcomingItems ya filtraba los fines de semana, por lo que se mantiene igual.
 const upcomingItems = computed(() => {
   const now = currentTimeRef.value
   const todayIndex = now.getDay()
   const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes()
+
   let allFutureItems = []
+
   for (let i = 0; i < 7; i++) {
     const dayIndex = (todayIndex + i) % 7
     const dayName = fullWeek[dayIndex]
+
     if (dayName === 'sábado' || dayName === 'domingo') {
-      continue
+      continue // Esta línea ya excluía los fines de semana
     }
+
     const itemsForDay = schedule.value[dayName] || []
     const filteredItems = itemsForDay
       .map((item) => {
         const [hours, minutes] = item.time.split(':')
         return { ...item, timeInMinutes: parseInt(hours) * 60 + parseInt(minutes) }
       })
-      .filter((item) => {
-        return i === 0 ? item.timeInMinutes >= currentTimeInMinutes : true
-      })
+      .filter((item) => (i === 0 ? item.timeInMinutes >= currentTimeInMinutes : true))
       .map((item) => ({
         ...item,
         dayIndex: dayIndex,
@@ -172,6 +178,7 @@ const upcomingItems = computed(() => {
       }))
     allFutureItems.push(...filteredItems)
   }
+
   allFutureItems.sort((a, b) => {
     let dayDiffA = a.dayIndex - todayIndex
     let dayDiffB = b.dayIndex - todayIndex
@@ -180,8 +187,10 @@ const upcomingItems = computed(() => {
     if (dayDiffA !== dayDiffB) return dayDiffA - dayDiffB
     return a.timeInMinutes - b.timeInMinutes
   })
+
   return allFutureItems.slice(0, 6)
 })
+
 const itemsForSelectedDay = computed(() => {
   const dayName = fullWeek[selectedDayIndex.value]
   const items = schedule.value[dayName] || []
@@ -201,6 +210,8 @@ const itemsForSelectedDay = computed(() => {
   font-family: 'Sulphur Point', sans-serif;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   padding: 0.5rem;
+  overflow: hidden;
+  overflow-y: auto;
 }
 .widget-header {
   display: flex;

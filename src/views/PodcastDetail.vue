@@ -415,5 +415,7 @@ onUnmounted(() => {
   cursor: pointer;
   transform: scale(1.2);
   margin-top: 0.25rem;
+  border: 2px solid #0d4d98 !important;
+  box-shadow: none !important;
 }
 </style>

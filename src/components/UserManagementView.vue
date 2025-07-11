@@ -1,5 +1,5 @@
 <template>
-  <div class="user-management-container">
+  <div class="user-management-container mt-5">
     <hr />
     <h2 class="mb-4">Gestión de Usuarios</h2>
 
@@ -20,7 +20,6 @@
             <thead class="table-light">
               <tr>
                 <th scope="col">Email del Usuario</th>
-                <th scope="col">Nombre</th>
                 <th scope="col" class="text-center">Rol Actual</th>
                 <th scope="col" class="text-center">Cambiar Rol A</th>
               </tr>
@@ -28,11 +27,8 @@
             <tbody>
               <tr v-for="user in userList" :key="user.uid">
                 <td class="fw-bold">{{ user.email }}</td>
-                <td>{{ user.displayName }}</td>
                 <td class="text-center">
-                  <span :class="getRoleClass(user.rol)">
-                    {{ user.rol }}
-                  </span>
+                  <span :class="getRoleClass(user.rol)">{{ user.rol }}</span>
                 </td>
                 <td class="text-center">
                   <div
@@ -43,33 +39,39 @@
                     <span class="visually-hidden">Actualizando...</span>
                   </div>
 
-                  <div v-else class="dropdown" :ref="(el) => (dropdownRefs[user.uid] = el)">
+                  <div v-else class="dropdown">
                     <button
                       class="btn btn-sm btn-outline-secondary dropdown-toggle"
                       type="button"
-                      aria-expanded="false"
                       :disabled="authStore.user && user.uid === authStore.user.uid"
                       :title="
-                        user.uid === authStore.user.uid
+                        authStore.user && user.uid === authStore.user.uid
                           ? 'No puedes cambiar tu propio rol'
                           : 'Cambiar rol'
                       "
-                      @click.stop="toggleDropdown(user.uid)"
+                      @click.stop="toggleDropdown(user, $event)"
                     >
                       Seleccionar...
                     </button>
-                    <ul class="dropdown-menu" v-if="openDropdownUid === user.uid">
-                      <li v-for="rol in roles" :key="rol">
-                        <a
-                          class="dropdown-item"
-                          href="#"
-                          @click.prevent="changeRole(user, rol)"
-                          :class="{ disabled: user.rol === rol }"
-                        >
-                          {{ rol }}
-                        </a>
-                      </li>
-                    </ul>
+
+                    <Teleport to="body">
+                      <ul
+                        class="dropdown-menu"
+                        v-if="openDropdown.user?.uid === user.uid"
+                        :style="openDropdown.style"
+                      >
+                        <li v-for="rol in roles" :key="rol">
+                          <a
+                            class="dropdown-item"
+                            href="#"
+                            @click.prevent="changeRole(openDropdown.user, rol)"
+                            :class="{ disabled: openDropdown.user.rol === rol }"
+                          >
+                            {{ rol }}
+                          </a>
+                        </li>
+                      </ul>
+                    </Teleport>
                   </div>
                 </td>
               </tr>
@@ -86,10 +88,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
-// 1. Importar todas las notificaciones necesarias
 import { showConfirmDialog, showSuccessToast, showErrorToast } from '@/stores/notifications.js'
 
 const authStore = useAuthStore()
@@ -98,18 +99,39 @@ const { userList, loadingUsers, usersError } = storeToRefs(authStore)
 const updatingUserId = ref(null)
 const roles = ['admin', 'moderador', 'user']
 
-const openDropdownUid = ref(null)
-const dropdownRefs = ref({})
+// --- [LÓGICA CORREGIDA PARA DROPDOWN] ---
+const openDropdown = ref({ user: null, style: {} }) // Guarda el usuario y el estilo en un solo objeto
+let currentButtonRef = null
 
-const toggleDropdown = (uid) => {
-  openDropdownUid.value = openDropdownUid.value === uid ? null : uid
-}
-
-const closeDropdowns = (event) => {
-  if (openDropdownUid.value && !dropdownRefs.value[openDropdownUid.value]?.contains(event.target)) {
-    openDropdownUid.value = null
+const toggleDropdown = async (user, event) => {
+  if (openDropdown.value.user?.uid === user.uid) {
+    openDropdown.value.user = null
+    currentButtonRef = null
+  } else {
+    openDropdown.value.user = user
+    currentButtonRef = event.currentTarget
+    await nextTick()
+    updateDropdownPosition()
   }
 }
+
+const updateDropdownPosition = () => {
+  if (!openDropdown.value.user || !currentButtonRef) return
+
+  const rect = currentButtonRef.getBoundingClientRect()
+  // Se modifica el objeto 'style' directamente dentro del ref
+  openDropdown.value.style = {
+    display: 'block',
+    top: `${rect.bottom + window.scrollY + 2}px`,
+    left: `${rect.left + window.scrollX}px`,
+  }
+}
+
+const closeDropdowns = () => {
+  openDropdown.value.user = null
+  currentButtonRef = null
+}
+// ----------------------------------------------------
 
 const getRoleClass = (rol) => ({
   'badge text-bg-danger': rol === 'admin',
@@ -117,46 +139,37 @@ const getRoleClass = (rol) => ({
   'badge text-bg-secondary': rol === 'user',
 })
 
-// 2. Modificar changeRole para usar las nuevas notificaciones
 const changeRole = async (user, nuevoRol) => {
   if (user.rol === nuevoRol) return
-
-  // Reemplazamos el 'confirm' nativo por nuestro diálogo personalizado
   const confirmed = await showConfirmDialog(
     `¿Cambiar rol?`,
     `Estás a punto de cambiar el rol de ${user.email} a "${nuevoRol}".`,
   )
-
   if (confirmed) {
-    openDropdownUid.value = null
+    closeDropdowns()
     updatingUserId.value = user.uid
     const result = await authStore.updateUserRole(user.uid, nuevoRol)
-
-    // Mostramos notificaciones de éxito o error según el resultado
     if (result.success) {
       showSuccessToast('Rol actualizado correctamente.')
     } else {
       showErrorToast(`Error: ${result.error}`)
     }
-
     updatingUserId.value = null
   }
 }
 
 onMounted(() => {
-  if (userList.value.length === 0) {
-    authStore.fetchAllUsers()
-  }
+  window.addEventListener('scroll', updateDropdownPosition, true)
   document.addEventListener('click', closeDropdowns)
 })
 
 onUnmounted(() => {
+  window.removeEventListener('scroll', updateDropdownPosition, true)
   document.removeEventListener('click', closeDropdowns)
 })
 </script>
 
 <style scoped>
-/* Tus estilos no necesitan cambios */
 .user-management-container {
   padding-bottom: 2rem;
 }
@@ -168,9 +181,10 @@ onUnmounted(() => {
   font-size: 0.9em;
   padding: 0.4em 0.7em;
 }
-.dropdown-menu[style],
-.dropdown-menu[v-if] {
-  display: block;
+.dropdown-menu {
+  position: fixed;
+  z-index: 1100;
+  width: 150px;
 }
 .dropdown-menu .disabled {
   pointer-events: none;

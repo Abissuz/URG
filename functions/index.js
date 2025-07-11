@@ -1,73 +1,120 @@
-// functions/index.js - VERSIÓN FINAL CON LÓGICA DE "ÚLTIMO ADMIN"
+// functions/index.js - VERSIÓN FINAL Y COMPLETA
 
-const { onCall } = require('firebase-functions/v2/https')
+const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 const { getAuth } = require('firebase-admin/auth')
 
 initializeApp()
 
-// --- Función del Dashboard (sin cambios) ---
+// --- Función del Dashboard ---
 exports.getDashboardStats = onCall(async (request) => {
-  // ... (el código de esta función se mantiene igual)
+  // 1. Verificación de seguridad
   if (!request.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Petición no autenticada.')
+    throw new HttpsError('unauthenticated', 'Petición no autenticada.')
   }
   const db = getFirestore()
   const adminUserDoc = await db.collection('users').doc(request.auth.uid).get()
   if (adminUserDoc.data().rol !== 'admin') {
-    throw new functions.https.HttpsError('permission-denied', 'Permiso denegado.')
+    throw new HttpsError('permission-denied', 'Permiso denegado.')
   }
+
+  // 2. Lógica principal de la función
   try {
-    const usersSnapshot = await db.collection('users').get()
-    const totalUsers = usersSnapshot.size
-    let adminCount = 0,
-      moderatorCount = 0
+    const [usersSnapshot, podcastsSnapshot] = await Promise.all([
+      db.collection('users').get(),
+      db.collection('podcasts').get(),
+    ])
+
+    const allUsers = usersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+
+    let adminCount = 0
+    let moderatorCount = 0
     const moderatorEmails = []
-    usersSnapshot.forEach((doc) => {
-      const userData = doc.data()
-      if (userData.rol === 'admin') adminCount++
-      if (userData.rol === 'moderador') {
+    allUsers.forEach((user) => {
+      if (user.rol === 'admin') adminCount++
+      if (user.rol === 'moderador') {
         moderatorCount++
-        moderatorEmails.push(userData.email)
+        moderatorEmails.push(user.email)
       }
     })
-    const podcastsSnapshot = await db.collection('podcasts').get()
-    const totalPodcasts = podcastsSnapshot.size
+
     const podcastDetailsPromises = podcastsSnapshot.docs.map(async (podcastDoc) => {
-      const episodesSnapshot = await podcastDoc.ref.collection('episodes').get()
-      const commentPromises = episodesSnapshot.docs.map((doc) =>
-        doc.ref.collection('comments').get(),
-      )
-      const commentSnapshots = await Promise.all(commentPromises)
-      const commentCount = commentSnapshots.reduce((acc, snap) => acc + snap.size, 0)
-      return { title: podcastDoc.data().title, episodeCount: episodesSnapshot.size, commentCount }
+      const podcastData = podcastDoc.data()
+
+      // Obtenemos los episodios y los ordenamos por número de episodio
+      const episodesQuery = podcastDoc.ref.collection('episodes').orderBy('episodeNumber', 'asc')
+      const episodesSnapshot = await episodesQuery.get()
+
+      let totalComments = 0
+      const episodeDetailsPromises = episodesSnapshot.docs.map(async (episodeDoc) => {
+        const episodeData = episodeDoc.data()
+        const commentsSnapshot = await episodeDoc.ref.collection('comments').get()
+        const commentCount = commentsSnapshot.size
+        totalComments += commentCount
+
+        let favoriteCount = 0
+        allUsers.forEach((user) => {
+          if (user.favoritos?.episodios?.some((fav) => fav.id === episodeDoc.id)) {
+            favoriteCount++
+          }
+        })
+
+        return {
+          id: episodeDoc.id,
+          title: episodeData.title,
+          commentCount,
+          favoriteCount,
+          commentsEnabled: episodeData.commentsEnabled,
+        }
+      })
+
+      const episodes = await Promise.all(episodeDetailsPromises)
+
+      let totalFavorites = 0
+      allUsers.forEach((user) => {
+        if (user.favoritos?.podcasts?.includes(podcastDoc.id)) {
+          totalFavorites++
+        }
+      })
+
+      return {
+        id: podcastDoc.id,
+        title: podcastData.title,
+        host: podcastData.host,
+        totalEpisodes: episodes.length,
+        totalComments,
+        totalFavorites,
+        episodes,
+      }
     })
+
     const podcastDetails = await Promise.all(podcastDetailsPromises)
+
+    // 3. Devolvemos el objeto completo con todos los datos
     return {
-      totalUsers,
+      totalUsers: allUsers.length,
       adminCount,
       moderatorCount,
       moderatorEmails,
-      totalPodcasts,
+      totalPodcasts: podcastsSnapshot.size,
       podcastDetails,
     }
   } catch (error) {
     console.error('Error en getDashboardStats:', error)
-    throw new functions.https.HttpsError('internal', 'Error interno del servidor.')
+    throw new HttpsError('internal', 'Error interno del servidor al procesar las estadísticas.')
   }
 })
 
-// --- Función para obtener todos los usuarios (sin cambios) ---
+// --- Función para obtener todos los usuarios ---
 exports.getAllUsers = onCall(async (request) => {
-  // ... (el código de esta función se mantiene igual)
   if (!request.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Petición no autenticada.')
+    throw new HttpsError('unauthenticated', 'Petición no autenticada.')
   }
   const db = getFirestore()
   const adminUserDoc = await db.collection('users').doc(request.auth.uid).get()
   if (adminUserDoc.data().rol !== 'admin') {
-    throw new functions.https.HttpsError('permission-denied', 'Permiso denegado.')
+    throw new HttpsError('permission-denied', 'Permiso denegado.')
   }
   try {
     const listUsersResult = await getAuth().listUsers(1000)
@@ -84,66 +131,50 @@ exports.getAllUsers = onCall(async (request) => {
     return await Promise.all(userPromises)
   } catch (error) {
     console.error('Error en getAllUsers:', error)
-    throw new functions.https.HttpsError('internal', 'Error al obtener usuarios.')
+    throw new HttpsError('internal', 'Error al obtener la lista de usuarios.')
   }
 })
 
-// --- [FUNCIÓN MEJORADA] Lógica para actualizar el rol ---
+// --- Función para actualizar el rol ---
 exports.updateUserRole = onCall(async (request) => {
-  // 1. Seguridad básica (igual que antes)
   if (!request.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Petición no autenticada.')
+    throw new HttpsError('unauthenticated', 'Petición no autenticada.')
   }
   const db = getFirestore()
   const adminUserDoc = await db.collection('users').doc(request.auth.uid).get()
   if (adminUserDoc.data().rol !== 'admin') {
-    throw new functions.https.HttpsError('permission-denied', 'Permiso denegado.')
+    throw new HttpsError('permission-denied', 'Permiso denegado.')
   }
 
-  // 2. Validación de datos (igual que antes)
   const { uid, nuevoRol } = request.data
   if (!uid || !nuevoRol) {
-    throw new functions.https.HttpsError(
-      'invalid-argument',
-      "Faltan argumentos 'uid' o 'nuevoRol'.",
-    )
+    throw new HttpsError('invalid-argument', "Faltan argumentos 'uid' o 'nuevoRol'.")
   }
   const rolesPermitidos = ['admin', 'moderador', 'user']
   if (!rolesPermitidos.includes(nuevoRol)) {
-    throw new functions.https.HttpsError('invalid-argument', 'El rol asignado no es válido.')
+    throw new HttpsError('invalid-argument', 'El rol asignado no es válido.')
   }
 
-  // --- 3. Medida de seguridad INTELIGENTE: Regla del "Último Administrador" ---
   const esAutoModificacion = request.auth.uid === uid
   const estaRenunciando = adminUserDoc.data().rol === 'admin' && nuevoRol !== 'admin'
 
   if (esAutoModificacion && estaRenunciando) {
-    console.log(
-      `El admin ${request.auth.uid} intenta renunciar a su rol. Verificando si es el último...`,
-    )
     const adminsQuery = db.collection('users').where('rol', '==', 'admin')
     const adminsSnapshot = await adminsQuery.get()
-
     if (adminsSnapshot.size <= 1) {
-      // Si el conteo de admins es 1 o menos, es él mismo. Se bloquea la operación.
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'failed-precondition',
         'No puedes quitarte el rol porque eres el único administrador. Primero, asciende a otro usuario.',
       )
     }
-    console.log(`Verificación superada. Hay ${adminsSnapshot.size} administradores en total.`)
   }
 
-  // 4. Lógica de actualización (igual que antes)
   try {
     const userRef = db.collection('users').doc(uid)
     await userRef.update({ rol: nuevoRol })
     return { success: true, message: `Rol del usuario ${uid} actualizado a ${nuevoRol}.` }
   } catch (error) {
     console.error(`Error al actualizar rol para ${uid}:`, error)
-    throw new functions.https.HttpsError(
-      'internal',
-      `Error al actualizar el rol para el usuario ${uid}.`,
-    )
+    throw new HttpsError('internal', `Error al actualizar el rol para el usuario ${uid}.`)
   }
 })

@@ -243,7 +243,7 @@ const faqSections = ref([
     questions: [
       {
         q: '¿Cómo puedo participar en la radio?',
-        a: '¡Nos encantaría! Si eres miembro de la comunidad UNIMAR, puedes acercarte a la cabina de la radio en el campus o escribirnos un correo a <strong>urg@unimar.edu.ve</strong> (ejemplo).',
+        a: '¡Nos encantaría! Si eres miembro de la comunidad UNIMAR, puedes acercarte al departamento de la URG en el campus o escribirnos un correo a <strong>uniradio@unimar.edu.ve</strong>.',
       },
     ],
   },
