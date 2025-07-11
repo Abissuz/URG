@@ -282,12 +282,20 @@ import { useAuthStore } from '@/stores/auth'
 import DashboardView from '@/components/DashboardView.vue'
 import UserManagementView from '@/components/UserManagementView.vue'
 import SongRequestsView from '@/components/SongRequestsView.vue'
+// IMPORTACIÓN AÑADIDA
+import {
+  showSuccessToast,
+  showErrorToast,
+  showWarningToast,
+  showConfirmDialog,
+} from '@/stores/notifications.js'
 
 const authStore = useAuthStore()
+const activeAdminView = ref('podcasts')
 
+// --- VARIABLES REACTIVAS DE PODCASTS ACTUALIZADAS ---
 const podcasts = ref([])
 const isLoading = ref(true)
-const activeAdminView = ref('podcasts')
 const selectedPodcastInfo = ref(null)
 const form = ref({
   id: null,
@@ -297,21 +305,20 @@ const form = ref({
   host: { name: '', image: '' },
 })
 const isSaving = ref(false)
-const saveSuccess = ref(false)
 const episodes = ref([])
 const episodesLoading = ref(false)
 const isEpisodeModalOpen = ref(false)
 const isSavingEpisode = ref(false)
 const newEpisodeForm = ref({ title: '', audioURL: '' })
 let unsubscribeEpisodes = null
+const isEditingMobile = ref(false)
 
+// --- VARIABLES DE CRONOGRAMA (SCHEDULE) ---
 const schedule = ref({})
 const scheduleLoading = ref(true)
-const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 const selectedDayForEditing = ref('lunes')
 const newScheduleItem = ref({ time: '', podcastId: '' })
-
-const isEditingMobile = ref(false)
 
 const viewRequests = () => {
   activeAdminView.value = 'requests'
@@ -328,45 +335,82 @@ onMounted(() => {
     activeAdminView.value = 'requests'
   }
 
+  // Carga de podcasts
   const podcastsCollection = collection(db, 'podcasts')
-  onSnapshot(podcastsCollection, (querySnapshot) => {
-    const fetchedPodcasts = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-    fetchedPodcasts.sort(naturalSort)
-    podcasts.value = fetchedPodcasts
-    isLoading.value = false
+  onSnapshot(
+    podcastsCollection,
+    (querySnapshot) => {
+      const fetchedPodcasts = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      fetchedPodcasts.sort(naturalSort)
+      podcasts.value = fetchedPodcasts
+      isLoading.value = false
+      if (podcasts.value.length > 0 && !selectedPodcastInfo.value) {
+        selectPodcast(podcasts.value[0])
+      }
+    },
+    (error) => showErrorToast('Error al cargar podcasts.'),
+  )
 
-    if (podcasts.value.length > 0 && !selectedPodcastInfo.value) {
-      selectPodcast(podcasts.value[0])
-    }
-  })
-
+  // Carga de cronograma
   const scheduleRef = doc(db, 'schedule', 'main')
-  onSnapshot(scheduleRef, (docSnap) => {
-    if (docSnap.exists()) {
-      const data = docSnap.data()
-      weekdays.forEach((day) => {
-        if (!data[day]) data[day] = []
-      })
-      schedule.value = data
-    } else {
-      schedule.value = weekdays.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
-    }
-    scheduleLoading.value = false
-  })
+  onSnapshot(
+    scheduleRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        weekdays.forEach((day) => {
+          if (!data[day]) data[day] = []
+        })
+        schedule.value = data
+      } else {
+        schedule.value = weekdays.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
+      }
+      scheduleLoading.value = false
+    },
+    (error) => showErrorToast('Error al cargar cronograma.'),
+  )
 })
 
+// WATCHER PARA EL DASHBOARD
 watch(activeAdminView, (newView) => {
-  // Si la nueva pestaña es 'dashboard'...
   if (newView === 'dashboard') {
-    console.log('Cargando datos para el dashboard y usuarios...')
-
-    // [MODIFICADO] Se eliminan las condiciones.
-    // Ahora SIEMPRE buscará los datos al entrar a la pestaña.
     authStore.fetchDashboardStats()
     authStore.fetchAllUsers()
   }
 })
 
+// --- WATCHER PARA PODCASTS AÑADIDO ---
+watch(
+  selectedPodcastInfo,
+  (newVal) => {
+    if (!newVal) isEditingMobile.value = false
+    if (unsubscribeEpisodes) unsubscribeEpisodes()
+    if (newVal && newVal.id) {
+      form.value = JSON.parse(JSON.stringify(newVal))
+      episodesLoading.value = true
+      const episodesCollection = collection(db, 'podcasts', newVal.id, 'episodes')
+      const q = query(episodesCollection)
+      unsubscribeEpisodes = onSnapshot(q, (snapshot) => {
+        let fetchedEpisodes = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        fetchedEpisodes.sort(naturalSort)
+        episodes.value = fetchedEpisodes
+        episodesLoading.value = false
+      })
+    } else {
+      form.value = {
+        id: null,
+        title: '',
+        description: '',
+        coverImage: '',
+        host: { name: '', image: '' },
+      }
+      episodes.value = []
+    }
+  },
+  { deep: true },
+)
+
+// --- FUNCIONES DE GESTIÓN DE PODCASTS ACTUALIZADAS ---
 const selectPodcast = (podcast) => {
   selectedPodcastInfo.value = podcast
   isEditingMobile.value = true
@@ -378,9 +422,8 @@ const prepareNewPodcast = () => {
 }
 
 const saveChanges = async () => {
-  if (!form.value.title) return alert('El título es obligatorio.')
+  if (!form.value.title) return showWarningToast('El título es obligatorio.')
   isSaving.value = true
-  saveSuccess.value = false
   try {
     const podcastData = { ...form.value }
     delete podcastData.id
@@ -390,11 +433,9 @@ const saveChanges = async () => {
       const newDocRef = await addDoc(collection(db, 'podcasts'), podcastData)
       selectPodcast({ id: newDocRef.id, ...podcastData })
     }
-    saveSuccess.value = true
-    setTimeout(() => (saveSuccess.value = false), 3000)
+    showSuccessToast('¡Podcast guardado con éxito!')
   } catch (error) {
-    console.error('Error guardando podcast:', error)
-    alert('No se pudo guardar el podcast.')
+    showErrorToast('No se pudo guardar el podcast.')
   } finally {
     isSaving.value = false
   }
@@ -402,11 +443,12 @@ const saveChanges = async () => {
 
 const deletePodcast = async () => {
   const podcastId = form.value.id
-  if (
-    !podcastId ||
-    !confirm(`¿Estás SEGURO de que quieres eliminar el podcast "${form.value.title}"?`)
+  if (!podcastId) return
+  const confirmed = await showConfirmDialog(
+    `¿Eliminar Podcast?`,
+    `Estás a punto de eliminar "${form.value.title}" y todos sus episodios. Esta acción es irreversible.`,
   )
-    return
+  if (!confirmed) return
 
   isSaving.value = true
   try {
@@ -439,11 +481,10 @@ const deletePodcast = async () => {
       .filter(Boolean)
 
     await Promise.all(favoriteUpdates)
-    alert(`El podcast "${form.value.title}" ha sido eliminado.`)
+    showSuccessToast(`El podcast "${form.value.title}" ha sido eliminado.`)
     selectedPodcastInfo.value = null
   } catch (error) {
-    console.error('Error eliminando podcast:', error)
-    alert('Ocurrió un error al eliminar el podcast.')
+    showErrorToast('Ocurrió un error al eliminar el podcast.')
   } finally {
     isSaving.value = false
   }
@@ -460,7 +501,7 @@ const closeNewEpisodeModal = () => {
 
 const saveNewEpisode = async () => {
   if (!newEpisodeForm.value.title || !newEpisodeForm.value.audioURL)
-    return alert('Ambos campos son obligatorios.')
+    return showWarningToast('Ambos campos son obligatorios.')
   isSavingEpisode.value = true
   try {
     const episodesCollection = collection(db, 'podcasts', form.value.id, 'episodes')
@@ -470,17 +511,21 @@ const saveNewEpisode = async () => {
       commentsEnabled: true,
       publishedDate: serverTimestamp(),
     })
+    showSuccessToast('Episodio añadido correctamente.')
     closeNewEpisodeModal()
   } catch (error) {
-    console.error('Error guardando episodio:', error)
-    alert('Ocurrió un error al guardar el episodio.')
+    showErrorToast('Ocurrió un error al guardar el episodio.')
   } finally {
     isSavingEpisode.value = false
   }
 }
 
 const deleteEpisode = async (episodeId) => {
-  if (!confirm(`¿Seguro que quieres eliminar este episodio?`)) return
+  const confirmed = await showConfirmDialog(
+    '¿Eliminar Episodio?',
+    'Esta acción no se puede deshacer.',
+  )
+  if (!confirmed) return
   try {
     await deleteDoc(doc(db, 'podcasts', form.value.id, 'episodes', episodeId))
     const usersSnapshot = await getDocs(collection(db, 'users'))
@@ -503,9 +548,9 @@ const deleteEpisode = async (episodeId) => {
       })
       .filter(Boolean)
     await Promise.all(favoriteUpdates)
+    showSuccessToast('Episodio eliminado.')
   } catch (error) {
-    console.error('Error eliminando episodio:', error)
-    alert('Ocurrió un error al eliminar el episodio.')
+    showErrorToast('Ocurrió un error al eliminar el episodio.')
   }
 }
 
@@ -514,11 +559,13 @@ const toggleComments = async (episode) => {
     await updateDoc(doc(db, 'podcasts', form.value.id, 'episodes', episode.id), {
       commentsEnabled: !episode.commentsEnabled,
     })
+    showSuccessToast(`Comentarios ${!episode.commentsEnabled ? 'habilitados' : 'deshabilitados'}.`)
   } catch (error) {
-    console.error('Error actualizando comentarios:', error)
+    showErrorToast('No se pudo actualizar el estado.')
   }
 }
 
+// --- FUNCIONES DE CRONOGRAMA ACTUALIZADAS CON NOTIFICACIONES ---
 const formatTime = (timeStr) => {
   if (!timeStr) return ''
   const [hours, minutes] = timeStr.split(':')
@@ -532,13 +579,10 @@ const addScheduleItem = async () => {
   const timeToAdd = newScheduleItem.value.time
   const podcastToAddId = newScheduleItem.value.podcastId
   if (!timeToAdd || !podcastToAddId) {
-    alert('Por favor, selecciona una hora y un podcast.')
-    return
+    return showWarningToast('Por favor, selecciona una hora y un podcast.')
   }
-  const isTimeOccupied = schedule.value[day]?.some((item) => item.time === timeToAdd)
-  if (isTimeOccupied) {
-    alert(`Error: La hora ${formatTime(timeToAdd)} ya está ocupada en el cronograma del ${day}.`)
-    return
+  if (schedule.value[day]?.some((item) => item.time === timeToAdd)) {
+    return showErrorToast(`La hora ${formatTime(timeToAdd)} ya está ocupada.`)
   }
   const selectedP = podcasts.value.find((p) => p.id === podcastToAddId)
   if (!selectedP) return
@@ -549,34 +593,36 @@ const addScheduleItem = async () => {
     hostName: selectedP.host.name,
   }
   const scheduleRef = doc(db, 'schedule', 'main')
-  const currentDaySchedule = schedule.value[day] || []
-  const updatedSchedule = [...currentDaySchedule, newItem].sort((a, b) =>
+  const updatedSchedule = [...(schedule.value[day] || []), newItem].sort((a, b) =>
     a.time.localeCompare(b.time),
   )
   try {
     await updateDoc(scheduleRef, { [day]: updatedSchedule })
+    showSuccessToast('Programa añadido al cronograma.')
     newScheduleItem.value = { time: '', podcastId: '' }
   } catch (error) {
-    console.error('Error añadiendo al cronograma:', error)
-    alert('No se pudo añadir el programa.')
+    showErrorToast('No se pudo añadir el programa.')
   }
 }
 
 const removeScheduleItem = async (day, itemToRemove) => {
-  if (!confirm(`¿Seguro que quieres eliminar "${itemToRemove.programTitle}" del cronograma?`))
-    return
+  const confirmed = await showConfirmDialog(
+    '¿Eliminar del Cronograma?',
+    `Vas a quitar "${itemToRemove.programTitle}" de la programación.`,
+  )
+  if (!confirmed) return
   try {
     const scheduleRef = doc(db, 'schedule', 'main')
     await updateDoc(scheduleRef, { [day]: arrayRemove(itemToRemove) })
+    showSuccessToast('Programa eliminado del cronograma.')
   } catch (error) {
-    console.error('Error eliminando del cronograma:', error)
-    alert('No se pudo eliminar el programa.')
+    showErrorToast('No se pudo eliminar el programa.')
   }
 }
 </script>
 
 <style scoped>
-/* Estilos unificados y consistentes */
+/* ESTILOS COMPLETOS Y ACTUALIZADOS DEL PRIMER CÓDIGO */
 .admin-panel {
   padding: 2rem;
   background-color: #f4f6f8;
@@ -619,28 +665,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   color: #0d4d98;
   border-bottom-color: #0d4d98;
 }
-.notification-dot-tab {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 8px;
-  height: 8px;
-  background-color: #dc3545;
-  border-radius: 50%;
-  animation: pulse-sm 1.5s infinite;
-}
-
-@keyframes pulse-sm {
-  0% {
-    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-  }
-  70% {
-    box-shadow: 0 0 0 5px rgba(220, 53, 69, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
-  }
-}
 .panel-layout,
 .schedule-manager-layout {
   display: flex;
@@ -674,12 +698,33 @@ const removeScheduleItem = async (day, itemToRemove) => {
   justify-content: space-between;
   align-items: center;
 }
+.notification-dot-tab {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  background-color: #dc3545;
+  border-radius: 50%;
+  animation: pulse-sm 1.5s infinite;
+}
+@keyframes pulse-sm {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 5px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
 .list-header h2 {
   margin: 0;
 }
 .add-new-btn {
   background-color: #0d4d98;
-  color: white;
+  color: #fff;
   border: none;
   border-radius: 50%;
   width: 32px;
@@ -712,8 +757,8 @@ const removeScheduleItem = async (day, itemToRemove) => {
 }
 .podcast-list-item.active {
   background-color: #0075ffa8;
-  color: white;
-  font-weight: bold;
+  color: #fff;
+  font-weight: 700;
 }
 .form-placeholder {
   display: flex;
@@ -770,12 +815,12 @@ const removeScheduleItem = async (day, itemToRemove) => {
 .delete-podcast-btn,
 .cancel-btn,
 .add-episode-btn {
-  color: white;
+  color: #fff;
   border: none;
   padding: 0.75rem 1.5rem;
   border-radius: 6px;
   font-size: 1rem;
-  font-weight: bold;
+  font-weight: 700;
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -823,25 +868,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   padding: 0;
   margin: 0;
 }
-.episode-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 0.25rem;
-  border-bottom: 1px solid #f0f0f0;
-}
-.episode-item:last-child {
-  border-bottom: none;
-}
-.episode-title {
-  flex-grow: 1;
-  padding-right: 1rem;
-}
-.episode-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
 .delete-episode-btn {
   background: none;
   border: none;
@@ -874,7 +900,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   left: 2px;
   width: 20px;
   height: 20px;
-  background-color: white;
+  background-color: #fff;
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   transition: transform 0.3s ease;
@@ -915,7 +941,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   z-index: 1000;
 }
 .modal-content {
-  background: #ffffff;
+  background: #fff;
   padding: 2rem;
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
@@ -983,7 +1009,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
 }
 .day-tab-item.active {
   background-color: #0075ffa8;
-  color: white;
+  color: #fff;
 }
 .schedule-content {
   display: flex;
@@ -1010,7 +1036,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   flex-grow: 1;
 }
 .item-time {
-  font-weight: bold;
+  font-weight: 700;
   font-size: 0.9em;
   color: #0d4d98;
   flex-shrink: 0;
@@ -1143,5 +1169,42 @@ const removeScheduleItem = async (day, itemToRemove) => {
   .add-schedule-form {
     grid-template-columns: 1fr;
   }
+}
+
+.episode-list-header,
+.episode-item {
+  display: grid;
+  grid-template-columns: 1fr 120px 80px;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0.25rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.episode-list-header {
+  padding: 0.5rem 0.25rem;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+  color: #6c757d;
+  border-bottom: 2px solid #e0e0e0;
+  text-transform: uppercase;
+  font-size: clamp(0.7rem, 1.5vw, 0.8rem);
+}
+.episode-item:last-child {
+  border-bottom: none;
+}
+.episode-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-grow: 1;
+  padding-right: 1rem;
+}
+.action-cell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.text-center {
+  text-align: center;
 }
 </style>
