@@ -347,6 +347,9 @@ onMounted(() => {
   box-shadow: none;
   color: #fff;
 }
+.form-control::placeholder {
+  color: white;
+}
 .video-card {
   border: 1px solid #343a4063;
   transition:
