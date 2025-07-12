@@ -188,4 +188,9 @@ onMounted(fetchLatestVideos)
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 }
+@media screen and (max-width: 386px) {
+  .section-title {
+    max-width: 170px;
+  }
+}
 </style>

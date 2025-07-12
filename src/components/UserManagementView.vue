@@ -134,9 +134,9 @@ const closeDropdowns = () => {
 // ----------------------------------------------------
 
 const getRoleClass = (rol) => ({
-  'badge text-bg-danger': rol === 'admin',
-  'badge text-bg-warning': rol === 'moderador',
-  'badge text-bg-secondary': rol === 'user',
+  'badge badge-admin': rol === 'admin', // [CAMBIO] Clase personalizada para Admin
+  'badge text-bg-info': rol === 'moderador', // Azul Claro para Moderador
+  'badge text-bg-secondary': rol === 'user', // Gris para User
 })
 
 const changeRole = async (user, nuevoRol) => {
@@ -190,5 +190,13 @@ onUnmounted(() => {
   pointer-events: none;
   background-color: #e9ecef;
   color: #adb5bd;
+}
+.badge-admin {
+  background-color: rgb(253 137 0) !important;
+  color: white; /* Añadimos color blanco al texto para un mejor contraste */
+}
+.text-bg-info {
+  background-color: #0075ffa8 !important;
+  color: white !important;
 }
 </style>

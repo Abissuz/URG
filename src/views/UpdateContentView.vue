@@ -76,22 +76,50 @@
               <label for="description">Descripción</label>
               <textarea id="description" v-model="form.description" rows="4"></textarea>
             </div>
+
             <div class="form-group">
-              <label for="coverImage">URL de la Imagen de Portada</label>
+              <label>Imagen de Portada</label>
+              <label for="coverImageFile" class="file-upload-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"></path>
+                </svg>
+                <span>{{ coverImageFile ? coverImageFile.name : 'Subir Portada' }}</span>
+              </label>
               <input
-                type="url"
-                id="coverImage"
-                v-model="form.coverImage"
-                placeholder="https://ejemplo.com/cover.png"
+                type="file"
+                id="coverImageFile"
+                @change="handleCoverImageSelection"
+                accept="image/jpeg, image/png, image/webp"
+                class="file-upload-input"
+              />
+              <img
+                v-if="coverPreview"
+                :src="coverPreview"
+                alt="Vista previa de la portada"
+                class="image-preview"
               />
             </div>
+
             <div class="form-group">
-              <label for="hostImage">URL de la Foto del Autor</label>
+              <label>Foto del Autor</label>
+              <label for="hostImageFile" class="file-upload-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"></path>
+                </svg>
+                <span>{{ hostImageFile ? hostImageFile.name : 'Subir Foto' }}</span>
+              </label>
               <input
-                type="url"
-                id="hostImage"
-                v-model="form.host.image"
-                placeholder="https://ejemplo.com/autor.png"
+                type="file"
+                id="hostImageFile"
+                @change="handleHostImageSelection"
+                accept="image/jpeg, image/png, image/webp"
+                class="file-upload-input"
+              />
+              <img
+                v-if="hostPreview"
+                :src="hostPreview"
+                alt="Vista previa del autor"
+                class="image-preview"
               />
             </div>
           </div>
@@ -286,7 +314,6 @@ import {
   getDocs,
   arrayRemove,
 } from 'firebase/firestore'
-// [AÑADIDO] Importaciones de Storage
 import {
   getStorage,
   ref as storageRef,
@@ -326,7 +353,6 @@ const isEpisodeModalOpen = ref(false)
 const isSavingEpisode = ref(false)
 const isEditingMobile = ref(false)
 
-// [MODIFICADO] Estado para el formulario del nuevo episodio
 const newEpisodeForm = ref({
   title: '',
   file: null,
@@ -338,9 +364,14 @@ let unsubscribeEpisodes = null
 
 const schedule = ref({})
 const scheduleLoading = ref(true)
-const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
 const selectedDayForEditing = ref('lunes')
 const newScheduleItem = ref({ time: '', podcastId: '' })
+
+const coverImageFile = ref(null)
+const hostImageFile = ref(null)
+const coverPreview = ref('')
+const hostPreview = ref('')
 
 const viewRequests = () => {
   activeAdminView.value = 'requests'
@@ -405,6 +436,11 @@ watch(
     if (unsubscribeEpisodes) unsubscribeEpisodes()
     if (newVal && newVal.id) {
       form.value = JSON.parse(JSON.stringify(newVal))
+      coverPreview.value = newVal.coverImage || ''
+      hostPreview.value = newVal.host.image || ''
+      coverImageFile.value = null
+      hostImageFile.value = null
+
       episodesLoading.value = true
       const episodesCollection = collection(db, 'podcasts', newVal.id, 'episodes')
       const q = query(episodesCollection)
@@ -422,11 +458,32 @@ watch(
         coverImage: '',
         host: { name: '', image: '' },
       }
+      coverPreview.value = ''
+      hostPreview.value = ''
+      coverImageFile.value = null
+      hostImageFile.value = null
+
       episodes.value = []
     }
   },
   { deep: true },
 )
+
+const handleCoverImageSelection = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    coverImageFile.value = file
+    coverPreview.value = URL.createObjectURL(file)
+  }
+}
+
+const handleHostImageSelection = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    hostImageFile.value = file
+    hostPreview.value = URL.createObjectURL(file)
+  }
+}
 
 const selectPodcast = (podcast) => {
   selectedPodcastInfo.value = podcast
@@ -441,20 +498,42 @@ const prepareNewPodcast = () => {
 const saveChanges = async () => {
   if (!form.value.title) return showWarningToast('El título es obligatorio.')
   isSaving.value = true
+
   try {
+    const storage = getStorage()
+
+    if (coverImageFile.value) {
+      const coverPath = `podcast-covers/${Date.now()}_${coverImageFile.value.name}`
+      const coverUploadRef = storageRef(storage, coverPath)
+      const uploadTask = await uploadBytesResumable(coverUploadRef, coverImageFile.value)
+      form.value.coverImage = await getDownloadURL(uploadTask.ref)
+    }
+
+    if (hostImageFile.value) {
+      const hostPath = `host-photos/${Date.now()}_${hostImageFile.value.name}`
+      const hostUploadRef = storageRef(storage, hostPath)
+      const uploadTask = await uploadBytesResumable(hostUploadRef, hostImageFile.value)
+      form.value.host.image = await getDownloadURL(uploadTask.ref)
+    }
+
     const podcastData = { ...form.value }
     delete podcastData.id
+
     if (form.value.id) {
       await updateDoc(doc(db, 'podcasts', form.value.id), podcastData)
     } else {
       const newDocRef = await addDoc(collection(db, 'podcasts'), podcastData)
       selectPodcast({ id: newDocRef.id, ...podcastData })
     }
+
     showSuccessToast('¡Podcast guardado con éxito!')
   } catch (error) {
+    console.error('Error al guardar el podcast:', error)
     showErrorToast('No se pudo guardar el podcast.')
   } finally {
     isSaving.value = false
+    coverImageFile.value = null
+    hostImageFile.value = null
   }
 }
 
@@ -507,7 +586,6 @@ const deletePodcast = async () => {
   }
 }
 
-// [MODIFICADO] Lógica para abrir el modal
 const openNewEpisodeModal = () => {
   newEpisodeForm.value = { title: '', file: null }
   isUploading.value = false
@@ -519,7 +597,6 @@ const closeNewEpisodeModal = () => {
   isEpisodeModalOpen.value = false
 }
 
-// [AÑADIDO] Función para capturar el archivo seleccionado
 const handleFileSelection = (event) => {
   const file = event.target.files[0]
   if (file) {
@@ -527,23 +604,7 @@ const handleFileSelection = (event) => {
   }
 }
 
-// [MODIFICADO] Lógica completa para subir archivo y guardar en Firestore
 const saveNewEpisode = async () => {
-  // --- INICIO DE CÓDIGO DE DEPURACIÓN ---
-  console.log('--- Verificando estado de autenticación ---')
-  const auth = getAuth()
-  const user = auth.currentUser
-
-  if (user) {
-    console.log('✅ Usuario AUTENTICADO. UID:', user.uid)
-  } else {
-    console.log(
-      '❌ ERROR CRÍTICO: El usuario es NULL. Firebase no tiene un usuario autenticado en este momento.',
-    )
-  }
-  console.log('-------------------------------------------')
-  // --- FIN DE CÓDIGO DE DEPURACIÓN ---
-
   if (!newEpisodeForm.value.title || !newEpisodeForm.value.file) {
     return showWarningToast('Debes proporcionar un título y seleccionar un archivo de audio.')
   }
@@ -697,7 +758,50 @@ const removeScheduleItem = async (day, itemToRemove) => {
 </script>
 
 <style scoped>
-/* [AÑADIDO] Estilos para la barra de progreso */
+/* [NUEVO] ESTILOS PARA BOTÓN DE SUBIDA */
+.file-upload-input {
+  display: none;
+}
+.file-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #0075ffa8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-align: center;
+}
+
+.file-upload-btn span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: white;
+}
+.file-upload-btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: white;
+}
+.image-preview {
+  width: 100%;
+  max-width: 200px; /* Ancho máximo para la preview */
+  height: auto;
+  aspect-ratio: 16 / 9; /* Mantiene la proporción */
+  margin-top: 1rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  object-fit: cover;
+}
+
+/* Estilos para la barra de progreso */
 .progress-bar-container {
   width: 100%;
   background-color: #e0e0e0;
@@ -926,10 +1030,10 @@ const removeScheduleItem = async (day, itemToRemove) => {
   transition: background-color 0.2s;
 }
 .save-btn {
-  background-color: #28a745;
+  background-color: #0075ffa8;
 }
 .save-btn:hover {
-  background-color: #218838;
+  background-color: #0265d6a8;
 }
 .save-btn:disabled,
 .add-episode-btn:disabled {
@@ -947,7 +1051,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
 }
 .add-episode-btn {
   padding: 0.5rem 1rem;
-  background-color: #007bff;
+  background-color: #0075ffa8;
 }
 .episodes-section {
   margin-top: 1.5rem;
@@ -1177,8 +1281,9 @@ const removeScheduleItem = async (day, itemToRemove) => {
   margin-bottom: 0.5rem;
 }
 .add-schedule-btn {
-  background-color: #28a745;
+  background-color: #0075ffa8;
   border-radius: 8px;
+  border-color: #0000004f;
   width: 40px;
   height: 40px;
   padding: 0;
