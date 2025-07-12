@@ -241,20 +241,29 @@
             <label for="episodeTitle">Título del Episodio</label>
             <input type="text" id="episodeTitle" v-model="newEpisodeForm.title" required />
           </div>
+
           <div class="form-group">
-            <label for="episodeAudioUrl">URL del Audio</label>
+            <label for="episodeAudioFile">Archivo de Audio (MP3)</label>
             <input
-              type="url"
-              id="episodeAudioUrl"
-              v-model="newEpisodeForm.audioURL"
-              placeholder="https://ejemplo.com/audio.mp3"
+              type="file"
+              id="episodeAudioFile"
+              @change="handleFileSelection"
+              accept="audio/mp3,audio/mpeg"
               required
             />
           </div>
+
+          <div v-if="isUploading" class="progress-bar-container">
+            <div class="progress-bar" :style="{ width: uploadProgress + '%' }"></div>
+            <span>Subiendo... {{ uploadProgress.toFixed(0) }}%</span>
+          </div>
+
           <div class="modal-actions">
             <button type="button" @click="closeNewEpisodeModal" class="cancel-btn">Cancelar</button>
-            <button type="submit" :disabled="isSavingEpisode" class="save-btn">
-              {{ isSavingEpisode ? 'Guardando...' : 'Guardar Episodio' }}
+            <button type="submit" :disabled="isSavingEpisode || isUploading" class="save-btn">
+              {{
+                isUploading ? 'Subiendo...' : isSavingEpisode ? 'Guardando...' : 'Guardar Episodio'
+              }}
             </button>
           </div>
         </form>
@@ -277,12 +286,19 @@ import {
   getDocs,
   arrayRemove,
 } from 'firebase/firestore'
+// [AÑADIDO] Importaciones de Storage
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytesResumable,
+  getDownloadURL,
+} from 'firebase/storage'
 import { db } from '@/firebase/config'
 import { useAuthStore } from '@/stores/auth'
 import DashboardView from '@/components/DashboardView.vue'
 import UserManagementView from '@/components/UserManagementView.vue'
 import SongRequestsView from '@/components/SongRequestsView.vue'
-// IMPORTACIÓN AÑADIDA
+import { getAuth } from 'firebase/auth'
 import {
   showSuccessToast,
   showErrorToast,
@@ -293,7 +309,6 @@ import {
 const authStore = useAuthStore()
 const activeAdminView = ref('podcasts')
 
-// --- VARIABLES REACTIVAS DE PODCASTS ACTUALIZADAS ---
 const podcasts = ref([])
 const isLoading = ref(true)
 const selectedPodcastInfo = ref(null)
@@ -309,11 +324,18 @@ const episodes = ref([])
 const episodesLoading = ref(false)
 const isEpisodeModalOpen = ref(false)
 const isSavingEpisode = ref(false)
-const newEpisodeForm = ref({ title: '', audioURL: '' })
-let unsubscribeEpisodes = null
 const isEditingMobile = ref(false)
 
-// --- VARIABLES DE CRONOGRAMA (SCHEDULE) ---
+// [MODIFICADO] Estado para el formulario del nuevo episodio
+const newEpisodeForm = ref({
+  title: '',
+  file: null,
+})
+const isUploading = ref(false)
+const uploadProgress = ref(0)
+
+let unsubscribeEpisodes = null
+
 const schedule = ref({})
 const scheduleLoading = ref(true)
 const weekdays = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
@@ -335,7 +357,6 @@ onMounted(() => {
     activeAdminView.value = 'requests'
   }
 
-  // Carga de podcasts
   const podcastsCollection = collection(db, 'podcasts')
   onSnapshot(
     podcastsCollection,
@@ -351,7 +372,6 @@ onMounted(() => {
     (error) => showErrorToast('Error al cargar podcasts.'),
   )
 
-  // Carga de cronograma
   const scheduleRef = doc(db, 'schedule', 'main')
   onSnapshot(
     scheduleRef,
@@ -371,7 +391,6 @@ onMounted(() => {
   )
 })
 
-// WATCHER PARA EL DASHBOARD
 watch(activeAdminView, (newView) => {
   if (newView === 'dashboard') {
     authStore.fetchDashboardStats()
@@ -379,7 +398,6 @@ watch(activeAdminView, (newView) => {
   }
 })
 
-// --- WATCHER PARA PODCASTS AÑADIDO ---
 watch(
   selectedPodcastInfo,
   (newVal) => {
@@ -410,7 +428,6 @@ watch(
   { deep: true },
 )
 
-// --- FUNCIONES DE GESTIÓN DE PODCASTS ACTUALIZADAS ---
 const selectPodcast = (podcast) => {
   selectedPodcastInfo.value = podcast
   isEditingMobile.value = true
@@ -490,8 +507,11 @@ const deletePodcast = async () => {
   }
 }
 
+// [MODIFICADO] Lógica para abrir el modal
 const openNewEpisodeModal = () => {
-  newEpisodeForm.value = { title: '', audioURL: '' }
+  newEpisodeForm.value = { title: '', file: null }
+  isUploading.value = false
+  uploadProgress.value = 0
   isEpisodeModalOpen.value = true
 }
 
@@ -499,23 +519,79 @@ const closeNewEpisodeModal = () => {
   isEpisodeModalOpen.value = false
 }
 
+// [AÑADIDO] Función para capturar el archivo seleccionado
+const handleFileSelection = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    newEpisodeForm.value.file = file
+  }
+}
+
+// [MODIFICADO] Lógica completa para subir archivo y guardar en Firestore
 const saveNewEpisode = async () => {
-  if (!newEpisodeForm.value.title || !newEpisodeForm.value.audioURL)
-    return showWarningToast('Ambos campos son obligatorios.')
+  // --- INICIO DE CÓDIGO DE DEPURACIÓN ---
+  console.log('--- Verificando estado de autenticación ---')
+  const auth = getAuth()
+  const user = auth.currentUser
+
+  if (user) {
+    console.log('✅ Usuario AUTENTICADO. UID:', user.uid)
+  } else {
+    console.log(
+      '❌ ERROR CRÍTICO: El usuario es NULL. Firebase no tiene un usuario autenticado en este momento.',
+    )
+  }
+  console.log('-------------------------------------------')
+  // --- FIN DE CÓDIGO DE DEPURACIÓN ---
+
+  if (!newEpisodeForm.value.title || !newEpisodeForm.value.file) {
+    return showWarningToast('Debes proporcionar un título y seleccionar un archivo de audio.')
+  }
+
   isSavingEpisode.value = true
+  isUploading.value = true
+  uploadProgress.value = 0
+
   try {
-    const episodesCollection = collection(db, 'podcasts', form.value.id, 'episodes')
-    await addDoc(episodesCollection, {
-      title: newEpisodeForm.value.title,
-      audioURL: newEpisodeForm.value.audioURL,
-      commentsEnabled: true,
-      publishedDate: serverTimestamp(),
-    })
-    showSuccessToast('Episodio añadido correctamente.')
-    closeNewEpisodeModal()
+    const file = newEpisodeForm.value.file
+    const podcastId = selectedPodcastInfo.value.id
+    const filePath = `podcasts/${podcastId}/${file.name}`
+    const storage = getStorage()
+    const sRef = storageRef(storage, filePath)
+
+    const uploadTask = uploadBytesResumable(sRef, file)
+
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        uploadProgress.value = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+      },
+      (error) => {
+        console.error('Error en la subida:', error)
+        showErrorToast('Error al subir el archivo de audio.')
+        isUploading.value = false
+        isSavingEpisode.value = false
+      },
+      async () => {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+
+        const episodesCollection = collection(db, 'podcasts', podcastId, 'episodes')
+        await addDoc(episodesCollection, {
+          title: newEpisodeForm.value.title,
+          audioURL: downloadURL,
+          commentsEnabled: true,
+          publishedDate: serverTimestamp(),
+        })
+
+        showSuccessToast('Episodio añadido correctamente.')
+        closeNewEpisodeModal()
+        isUploading.value = false
+        isSavingEpisode.value = false
+      },
+    )
   } catch (error) {
     showErrorToast('Ocurrió un error al guardar el episodio.')
-  } finally {
+    isUploading.value = false
     isSavingEpisode.value = false
   }
 }
@@ -527,7 +603,7 @@ const deleteEpisode = async (episodeId) => {
   )
   if (!confirmed) return
   try {
-    await deleteDoc(doc(db, 'podcasts', form.value.id, 'episodes', episodeId))
+    await deleteDoc(doc(db, 'podcasts', selectedPodcastInfo.value.id, 'episodes', episodeId))
     const usersSnapshot = await getDocs(collection(db, 'users'))
     const favoriteUpdates = usersSnapshot.docs
       .map((userDoc) => {
@@ -556,7 +632,7 @@ const deleteEpisode = async (episodeId) => {
 
 const toggleComments = async (episode) => {
   try {
-    await updateDoc(doc(db, 'podcasts', form.value.id, 'episodes', episode.id), {
+    await updateDoc(doc(db, 'podcasts', selectedPodcastInfo.value.id, 'episodes', episode.id), {
       commentsEnabled: !episode.commentsEnabled,
     })
     showSuccessToast(`Comentarios ${!episode.commentsEnabled ? 'habilitados' : 'deshabilitados'}.`)
@@ -565,7 +641,6 @@ const toggleComments = async (episode) => {
   }
 }
 
-// --- FUNCIONES DE CRONOGRAMA ACTUALIZADAS CON NOTIFICACIONES ---
 const formatTime = (timeStr) => {
   if (!timeStr) return ''
   const [hours, minutes] = timeStr.split(':')
@@ -622,7 +697,33 @@ const removeScheduleItem = async (day, itemToRemove) => {
 </script>
 
 <style scoped>
-/* ESTILOS COMPLETOS Y ACTUALIZADOS DEL PRIMER CÓDIGO */
+/* [AÑADIDO] Estilos para la barra de progreso */
+.progress-bar-container {
+  width: 100%;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  margin: 1rem 0;
+  position: relative;
+  height: 20px;
+  text-align: center;
+  color: #333;
+  font-weight: bold;
+}
+.progress-bar {
+  background-color: #4caf50;
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease-in-out;
+}
+.progress-bar-container span {
+  position: absolute;
+  width: 100%;
+  left: 0;
+  top: 0;
+  line-height: 20px;
+}
+
+/* Estilos existentes... */
 .admin-panel {
   padding: 2rem;
   background-color: #f4f6f8;
