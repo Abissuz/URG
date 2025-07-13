@@ -850,6 +850,7 @@ const removeScheduleItem = async (day, itemToRemove) => {
   display: flex;
   gap: 0.5rem;
   margin-top: 1.5rem;
+  overflow-x: scroll;
 }
 .admin-tabs button {
   padding: 0.75rem 1.5rem;

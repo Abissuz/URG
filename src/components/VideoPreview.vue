@@ -131,6 +131,7 @@ onMounted(fetchLatestVideos)
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #9b9b9b59;
   padding: 0 1.5rem;
+  margin-top: 30px;
 }
 .section-title {
   color: #0d4b94;

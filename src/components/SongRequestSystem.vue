@@ -47,6 +47,9 @@
             +
           </button>
         </div>
+        <div v-else class="song-details-card">
+          <p>Selecciona una canción de la lista.</p>
+        </div>
       </div>
       <div class="panel-list">
         <div
@@ -73,7 +76,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { useSongStore } from '@/stores/songs'
+import { useSongStore } from '@/stores/songs' // Asegúrate que la ruta sea correcta
 import { storeToRefs } from 'pinia'
 
 const songStore = useSongStore()
@@ -92,11 +95,12 @@ watch(
     }
   },
   { immediate: true },
-) // <-- AÑADE ESTA LÍNEA
+)
 
 const selectedSong = computed(
   () => songs.value.find((song) => song.id === selectedSongId.value) || null,
 )
+
 const filteredSongs = computed(() => {
   if (!searchQuery.value) return songs.value
   const query = searchQuery.value.toLowerCase()
@@ -108,9 +112,12 @@ const filteredSongs = computed(() => {
 const selectSong = (song) => {
   selectedSongId.value = song.id
 }
+
 const confirmRequest = (song) => {
+  // Aquí puedes añadir una notificación de éxito/error si lo deseas
   songStore.requestSong(song)
 }
+
 const toggleSearch = async () => {
   isSearchActive.value = !isSearchActive.value
   if (isSearchActive.value) {
@@ -120,12 +127,15 @@ const toggleSearch = async () => {
     searchQuery.value = ''
   }
 }
+
 const onImageError = (event) => {
   event.target.src = new URL('@/assets/img/Blanci.png', import.meta.url).href
 }
 
 onMounted(() => {
-  songStore.fetchSongs()
+  if (songs.value.length === 0) {
+    songStore.fetchSongs()
+  }
 })
 </script>
 
@@ -265,8 +275,6 @@ onMounted(() => {
   transform: translateX(50px);
   opacity: 0;
 }
-
-/* NUEVA ESTRUCTURA INTERNA */
 .content-body {
   display: flex;
   height: calc(100% - 60px); /* Altura restante */
@@ -274,8 +282,7 @@ onMounted(() => {
 }
 .panel-detail,
 .panel-list {
-  flex: 1; /* Divide el espacio a la mitad */
-  padding: 10px;
+  flex: 1;
   min-width: 0;
 }
 .panel-list {
@@ -286,6 +293,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 10px;
 }
 .song-details-card {
   display: flex;
@@ -300,7 +308,6 @@ onMounted(() => {
   object-fit: cover;
   margin-bottom: 1rem;
 }
-/* Reutilizando estilos existentes para mantener coherencia */
 .details-title {
   font-weight: 900;
   font-size: 1.5rem;
@@ -330,5 +337,48 @@ onMounted(() => {
 }
 .track.selected {
   background-color: #e7f3ff;
+}
+
+/* --- BLOQUE RESPONSIVO AÑADIDO --- */
+/* Se activa en pantallas de 800px de ancho o menos */
+@media (max-width: 800px) {
+  .content-body {
+    flex-direction: column; /* Apila los paneles verticalmente */
+    height: auto; /* Permite que el contenido determine la altura */
+  }
+
+  .panel-list {
+    order: 1; /* Muestra la lista de canciones primero */
+    border-left: none; /* Elimina el borde lateral */
+    border-bottom: 2px solid #e0e0e0; /* Añade un separador horizontal */
+    flex: 1 1 50vh; /* La lista ocupa un máximo del 50% de la altura de la pantalla */
+  }
+
+  .panel-detail {
+    order: 2; /* Muestra el detalle después de la lista */
+    padding: 1.5rem; /* Aumenta un poco el espacio interior en móviles */
+    flex-shrink: 0; /* Evita que el panel de detalle se encoja */
+  }
+
+  /* Ajusta el tamaño de los elementos en el panel de detalle para móviles */
+  .details-cover {
+    width: 140px;
+    height: 140px;
+  }
+
+  .details-title {
+    font-size: 1.3rem;
+  }
+
+  .details-artist {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .btn-request-icon {
+    width: 45px;
+    height: 45px;
+    font-size: 1.8rem;
+  }
 }
 </style>

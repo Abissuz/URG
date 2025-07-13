@@ -243,9 +243,16 @@ const scrollTop = () => {
   mainContentRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
 }
 provide('scrollTop', scrollTop)
+
+// [MODIFICACIÓN AÑADIDA]
+// Este watcher cierra el menú lateral móvil automáticamente al navegar a una nueva ruta.
 watch(
   () => route.path,
   () => {
+    if (isMobileMenuOpen.value) {
+      isMobileMenuOpen.value = false
+    }
+    // También se encarga de hacer scroll hacia arriba
     scrollTop()
   },
 )
@@ -281,6 +288,7 @@ watch(
       unsubscribeRequests = null
     }
   },
+  { immediate: true }, // Se añade immediate para que se ejecute al cargar el componente
 )
 
 // --- Lógica del Componente (sin cambios) ---
