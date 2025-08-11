@@ -196,10 +196,13 @@ onMounted(() => {
   padding: 5px 0;
   outline: none;
 }
+.search-input::placeholder {
+  color: white;
+}
 .close-search {
   font-size: 2.2rem;
   line-height: 1;
-  color: #ccc;
+  color: #ffffff;
   cursor: pointer;
   font-weight: 300;
   padding: 0 0 0 15px;

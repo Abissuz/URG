@@ -133,7 +133,7 @@
                                   <th>Episodio</th>
                                   <th class="text-center">Favoritos</th>
                                   <th class="text-center">Comentarios</th>
-                                  <th class="text-center">Estado</th>
+                                  <th class="text-center">Estado Comentarios</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -184,7 +184,9 @@ import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import logoURL from '@/assets/img/LOGO-PNG-GLOBAL-RADIO (1).png'
+
+// [CORRECCIÓN] Importamos el logo con el sufijo '?inline' para que Vite lo convierta a Base64.
+import logoURL from '@/assets/img/LOGO-PNG-GLOBAL-RADIO (1).png?inline'
 
 // --- STORES Y ESTADO ---
 const authStore = useAuthStore()
@@ -206,10 +208,73 @@ const toggleSelectAll = (event) => {
 
 const generateReport = () => {
   isGeneratingReport.value = true
-  const doc = new jsPDF()
-  // ... (el resto del script no cambia)
-  doc.save(`Reporte-URG-${new Date().toLocaleDateString()}.pdf`)
-  isGeneratingReport.value = false
+  try {
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+
+    // [CORRECCIÓN] Se usa la variable 'logoURL' directamente.
+    // Vite ya la ha convertido en un string Base64 completo y correcto.
+    doc.addImage(logoURL, 'PNG', pageWidth / 2 - 25, 15, 50, 25)
+
+    doc.setFontSize(16)
+    doc.text('Unimar Radio Global - Universidad de Margarita', pageWidth / 2, 50, {
+      align: 'center',
+    })
+    doc.setFontSize(12)
+    doc.text('Reporte de Estadísticas de Podcasts', pageWidth / 2, 58, { align: 'center' })
+
+    const podcastsToReport = sortedPodcastDetails.value.filter((p) =>
+      selectedPodcasts.value.has(p.id),
+    )
+
+    const head = [['Podcast', 'Autor', 'Episodios', 'Favoritos', 'Comentarios']]
+    const body = podcastsToReport.map((p) => [
+      p.title,
+      p.host?.name || 'N/A',
+      p.totalEpisodes,
+      p.totalFavorites,
+      p.totalComments,
+    ])
+
+    autoTable(doc, {
+      head: head,
+      body: body,
+      startY: 70,
+      theme: 'grid',
+      headStyles: { fillColor: [13, 77, 152] },
+    })
+
+    podcastsToReport.forEach((podcast) => {
+      if (podcast.episodes && podcast.episodes.length > 0) {
+        doc.addPage()
+        doc.setFontSize(14)
+        doc.text(`Desglose de Episodios: ${podcast.title}`, 14, 20)
+
+        const episodeHead = [['Episodio', 'Favoritos', 'Comentarios', 'Estado Comentarios']]
+        const episodeBody = podcast.episodes.map((ep) => [
+          ep.title,
+          ep.favoriteCount,
+          ep.commentCount,
+          ep.commentsEnabled ? 'Habilitado' : 'Deshabilitado',
+        ])
+
+        autoTable(doc, {
+          head: episodeHead,
+          body: episodeBody,
+          startY: 28,
+          theme: 'striped',
+          headStyles: { fillColor: [13, 77, 152] },
+        })
+      }
+    })
+
+    doc.save(`Reporte-URG-${new Date().toLocaleDateString()}.pdf`)
+  } catch (err) {
+    console.error('Error al generar el PDF:', err)
+    // Aquí puedes añadir una notificación de error para el usuario
+  } finally {
+    isGeneratingReport.value = false
+  }
 }
 
 const fetchStats = (isManualRefresh = false) => {
@@ -250,7 +315,6 @@ const sortedPodcastDetails = computed(() => {
   })
 })
 </script>
-
 <style scoped>
 /* ESTILOS ORIGINALES (SIN CAMBIOS) */
 .dashboard-container {

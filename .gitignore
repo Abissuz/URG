@@ -28,6 +28,6 @@ coverage
 *.sw?
 .env
 *.tsbuildinfo
-
+unimar-radio-global-firebase-adminsdk-fbsvc-efa6e925a9.json
 test-results/
 playwright-report/

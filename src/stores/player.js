@@ -32,19 +32,19 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
-  const playOnDemandTrack = async (episode) => {
+  // Ahora la función recibe el episodio Y el podcast al que pertenece
+  const playOnDemandTrack = async (episode, podcast) => {
     if (audioElement.value) audioElement.value.pause()
     isLiveStreaming.value = false
-    currentTrack.value = { title: episode.title, artist: 'Podcast' }
+    // Usamos el título del podcast como el artista
+    currentTrack.value = { title: episode.title, artist: podcast.title }
     audioElement.value.src = episode.audioURL
     try {
       await audioElement.value.play()
-      // 2. Notificación de éxito al cambiar a un podcast
       showSuccessToast(`Reproduciendo: ${episode.title}`)
       startSongTimer()
     } catch (error) {
       console.error('Error al reproducir podcast:', error)
-      // 3. Notificación de error si no se puede reproducir
       showErrorToast('No se pudo reproducir el episodio.')
     }
   }

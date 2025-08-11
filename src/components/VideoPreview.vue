@@ -160,6 +160,7 @@ onMounted(fetchLatestVideos)
     transform 0.3s ease,
     box-shadow 0.3s ease;
   cursor: pointer;
+  width: 400px;
   border: 1px solid #343a405b;
 }
 .video-card:hover {

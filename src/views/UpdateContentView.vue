@@ -271,14 +271,25 @@
           </div>
 
           <div class="form-group">
-            <label for="episodeAudioFile">Archivo de Audio (MP3)</label>
+            <label class="form-label">Archivo de Audio (MP3)</label>
+
             <input
               type="file"
               id="episodeAudioFile"
+              class="input-file-hidden"
               @change="handleFileSelection"
               accept="audio/mp3,audio/mpeg"
               required
             />
+
+            <div class="d-flex align-items-center">
+              <label for="episodeAudioFile" class="btn btn-outline-primary me-3">
+                <i class="fas fa-upload"></i>
+                Seleccionar Archivo
+              </label>
+
+              <span class="file-name-display">{{ selectedFileName }}</span>
+            </div>
           </div>
 
           <div v-if="isUploading" class="progress-bar-container">
@@ -597,10 +608,22 @@ const closeNewEpisodeModal = () => {
   isEpisodeModalOpen.value = false
 }
 
+const selectedFileName = ref('Sin archivos seleccionados')
+
+// La función unificada que hace ambas cosas
 const handleFileSelection = (event) => {
   const file = event.target.files[0]
+
   if (file) {
+    // Tarea 1: Actualizar la UI con el nombre del archivo
+    selectedFileName.value = file.name
+
+    // Tarea 2: Guardar el archivo completo en el formulario para subirlo
     newEpisodeForm.value.file = file
+  } else {
+    // Si el usuario cancela la selección, se resetean ambas variables
+    selectedFileName.value = 'Sin archivos seleccionados'
+    newEpisodeForm.value.file = null
   }
 }
 
@@ -904,6 +927,11 @@ const removeScheduleItem = async (day, itemToRemove) => {
   justify-content: space-between;
   align-items: center;
 }
+.btn:hover {
+  color: var(--bs-btn-hover-color) !important;
+  background-color: var(--bs-btn-hover-bg);
+  border-color: var(--bs-btn-hover-border-color);
+}
 .notification-dot-tab {
   position: absolute;
   top: 8px;
@@ -982,6 +1010,14 @@ const removeScheduleItem = async (day, itemToRemove) => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
+}
+.input-file-hidden {
+  display: none;
+}
+
+.file-name-display {
+  color: #6c757d; /* Un color gris para el texto */
+  font-style: italic;
 }
 .form-group {
   display: flex;
@@ -1184,14 +1220,12 @@ const removeScheduleItem = async (day, itemToRemove) => {
   background-color: #6c757d;
 }
 .modal-actions .cancel-btn:hover {
-  background-color: #5a6268;
+  background-color: #e22424;
 }
 .modal-actions .save-btn {
-  background-color: #28a745;
+  background-color: #0075ffa8;
 }
-.modal-actions .save-btn:hover {
-  background-color: #218838;
-}
+
 .schedule-manager-layout {
   padding: 0;
 }

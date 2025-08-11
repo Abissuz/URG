@@ -49,7 +49,10 @@
                   ]"
                 ></i>
               </button>
-              <button @click.stop="playEpisode(episode)" class="btn btn-sm btn-outline-primary">
+              <button
+                @click="playerStore.playOnDemandTrack(episode, podcast)"
+                class="btn btn-sm btn-outline-primary"
+              >
                 <i class="fas fa-play me-2"></i>Reproducir
               </button>
             </div>
