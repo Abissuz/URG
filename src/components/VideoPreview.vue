@@ -160,7 +160,8 @@ onMounted(fetchLatestVideos)
     transform 0.3s ease,
     box-shadow 0.3s ease;
   cursor: pointer;
-  width: 400px;
+  width: 100%;
+  max-width: 400px;
   border: 1px solid #343a405b;
 }
 .video-card:hover {
@@ -185,9 +186,21 @@ onMounted(fetchLatestVideos)
   overflow: hidden;
   text-overflow: ellipsis;
 }
+@media screen and (max-width: 1410px) {
+  .video-card {
+    width: 25vw;
+    max-width: 400px;
+  }
+}
 @media screen and (max-width: 1310px) {
   .video-grid {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+@media screen and (max-width: 1176px) {
+  .video-card {
+    width: 100% !important;
+    max-width: 400px;
   }
 }
 @media screen and (max-width: 386px) {

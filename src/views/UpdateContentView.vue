@@ -1417,7 +1417,6 @@ const removeScheduleItem = async (day, itemToRemove) => {
   display: grid;
   grid-template-columns: 1fr 120px 80px;
   align-items: center;
-  gap: 1rem;
   padding: 0.75rem 0.25rem;
   border-bottom: 1px solid #f0f0f0;
 }

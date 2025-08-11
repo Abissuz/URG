@@ -320,7 +320,7 @@ onMounted(() => {
 .busca {
   max-width: 500px;
   width: 35%;
-  min-width: 300px;
+  min-width: 250px;
   margin: 0 auto 2rem;
 }
 .lupa {

@@ -364,6 +364,7 @@ body,
 }
 .page-content {
   flex-grow: 1;
+  width: 100%;
 }
 .sidebar {
   width: 240px;

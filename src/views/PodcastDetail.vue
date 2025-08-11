@@ -53,7 +53,8 @@
                 @click="playerStore.playOnDemandTrack(episode, podcast)"
                 class="btn btn-sm btn-outline-primary"
               >
-                <i class="fas fa-play me-2"></i>Reproducir
+                <i class="fas fa-play me-2"></i>
+                <span class="button-text">Reproducir</span>
               </button>
             </div>
           </li>
@@ -420,5 +421,14 @@ onUnmounted(() => {
   margin-top: 0.25rem;
   border: 2px solid #0d4d98 !important;
   box-shadow: none !important;
+}
+/* Este código se aplicará solo cuando el ancho de la pantalla sea de 778px o menos */
+@media (max-width: 768px) {
+  .button-text {
+    display: none; /* Oculta el texto */
+  }
+  .me-2 {
+    margin: 0 !important;
+  }
 }
 </style>
