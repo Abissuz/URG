@@ -384,9 +384,9 @@ const hostImageFile = ref(null)
 const coverPreview = ref('')
 const hostPreview = ref('')
 
+// [MODIFICADO] La función ahora solo cambia la vista. El 'watch' se encargará del resto.
 const viewRequests = () => {
   activeAdminView.value = 'requests'
-  authStore.clearNewSongRequest()
 }
 
 const naturalSort = (a, b) =>
@@ -396,8 +396,16 @@ onMounted(() => {
   if (authStore.isAdmin) {
     activeAdminView.value = 'dashboard'
   } else if (authStore.isModerator) {
-    activeAdminView.value = 'requests'
+    // Aterriza en peticiones por defecto si hay una notificación
+    if (authStore.hasNewSongRequest) {
+      activeAdminView.value = 'requests'
+    } else {
+      activeAdminView.value = 'podcasts'
+    }
   }
+
+  // [ELIMINADO] Se quita la lógica de aquí para que no se limpie al cargar.
+  // authStore.setHasNewSongRequest(false);
 
   const podcastsCollection = collection(db, 'podcasts')
   onSnapshot(
@@ -433,10 +441,17 @@ onMounted(() => {
   )
 })
 
+// [CORRECCIÓN] Este 'watch' ahora centraliza la lógica de las pestañas.
 watch(activeAdminView, (newView) => {
+  // Si la nueva vista es 'dashboard', carga las estadísticas.
   if (newView === 'dashboard') {
     authStore.fetchDashboardStats()
     authStore.fetchAllUsers()
+  }
+
+  // Si la nueva vista es 'requests', limpia la notificación.
+  if (newView === 'requests') {
+    authStore.setHasNewSongRequest(false)
   }
 })
 
@@ -473,7 +488,6 @@ watch(
       hostPreview.value = ''
       coverImageFile.value = null
       hostImageFile.value = null
-
       episodes.value = []
     }
   },
@@ -610,18 +624,12 @@ const closeNewEpisodeModal = () => {
 
 const selectedFileName = ref('Sin archivos seleccionados')
 
-// La función unificada que hace ambas cosas
 const handleFileSelection = (event) => {
   const file = event.target.files[0]
-
   if (file) {
-    // Tarea 1: Actualizar la UI con el nombre del archivo
     selectedFileName.value = file.name
-
-    // Tarea 2: Guardar el archivo completo en el formulario para subirlo
     newEpisodeForm.value.file = file
   } else {
-    // Si el usuario cancela la selección, se resetean ambas variables
     selectedFileName.value = 'Sin archivos seleccionados'
     newEpisodeForm.value.file = null
   }
@@ -658,7 +666,6 @@ const saveNewEpisode = async () => {
       },
       async () => {
         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-
         const episodesCollection = collection(db, 'podcasts', podcastId, 'episodes')
         await addDoc(episodesCollection, {
           title: newEpisodeForm.value.title,

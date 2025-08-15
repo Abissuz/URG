@@ -143,7 +143,7 @@ onMounted(() => {
 /* ESTILOS ORIGINALES PRESERVADOS */
 .music-container {
   flex: 1;
-  min-width: 300px;
+  min-width: 253px;
   border: 1px solid #e0e0e0;
   border-radius: 10px;
   font-family: 'Sulphur Point', sans-serif;

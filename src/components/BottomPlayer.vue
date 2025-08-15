@@ -1,6 +1,5 @@
 <template>
   <div class="player-bar-container">
-    <!-- Modal de Metadatos -->
     <transition name="slide-fade">
       <div v-if="showMetadata" class="metadata-panel" ref="metadataPanelRef">
         <div class="logo-container">
@@ -8,10 +7,18 @@
         </div>
         <h2 class="song-title">{{ playerStore.currentTrack.title }}</h2>
         <h3 class="song-artist">{{ playerStore.currentTrack.artist }}</h3>
+
+        <button
+          v-if="!playerStore.isLiveStreaming"
+          @click="playerStore.switchToLiveStream()"
+          class="live-button"
+        >
+          <i class="fas fa-broadcast-tower me-2"></i>
+          Volver al Vivo
+        </button>
       </div>
     </transition>
 
-    <!-- Barra Principal del Reproductor -->
     <div class="player-bar">
       <div class="center-button-container" ref="metadataToggleRef">
         <button
@@ -75,12 +82,10 @@
         </div>
       </div>
     </div>
-    <!-- ¡El elemento <audio> ya no está aquí! Se ha movido a App.vue -->
   </div>
 </template>
 
 <script setup>
-// ... (El resto del script de BottomPlayer se mantiene igual) ...
 import { ref, onMounted, onUnmounted } from 'vue'
 import { usePlayerStore } from '@/stores/player'
 
@@ -136,7 +141,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* El resto de los estilos se mantiene igual */
 .player-bar-container {
   display: none;
 }
@@ -273,7 +277,7 @@ onUnmounted(() => {
 }
 .metadata-panel {
   position: absolute;
-  bottom: 48px;
+  bottom: 35px;
   left: 50%;
   width: 100%;
   max-width: 500px;
@@ -282,9 +286,9 @@ onUnmounted(() => {
   backdrop-filter: blur(10px);
   border: 2px solid #0d4d98;
   border-bottom: none;
-  padding: 45px 25px 25px;
+  padding: 45px 25px 70px;
   border-radius: 15px 15px 0 0;
-  z-index: 700;
+  height: -11%;
   text-align: center;
 }
 .logo-container {
@@ -336,5 +340,26 @@ onUnmounted(() => {
 .slide-fade-fast-leave-to {
   transform: translateY(10px);
   opacity: 0;
+}
+
+/* [NUEVO] Estilos para el botón de "Volver al Vivo" */
+.live-button {
+  margin-top: 20px;
+  background-color: #ff8a00;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 10px 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.live-button:hover {
+  background-color: #e67a00;
+  transform: scale(1.05);
 }
 </style>

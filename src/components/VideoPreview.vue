@@ -162,6 +162,7 @@ onMounted(fetchLatestVideos)
   cursor: pointer;
   width: 100%;
   max-width: 400px;
+  height: 100%;
   border: 1px solid #343a405b;
 }
 .video-card:hover {
@@ -194,7 +195,7 @@ onMounted(fetchLatestVideos)
 }
 @media screen and (max-width: 1310px) {
   .video-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   }
 }
 @media screen and (max-width: 1176px) {
@@ -206,6 +207,7 @@ onMounted(fetchLatestVideos)
 @media screen and (max-width: 386px) {
   .section-title {
     max-width: 170px;
+    width: 125px;
   }
 }
 </style>

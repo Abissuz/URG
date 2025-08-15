@@ -1,8 +1,6 @@
 <template>
-  <!-- Si la ruta tiene la meta 'oculto' (como el login), solo muestra el RouterView -->
   <RouterView v-if="$route.meta.oculto" />
 
-  <!-- Layout principal para el resto de la aplicación -->
   <div v-else class="app-layout-container">
     <aside class="sidebar" :class="{ 'is-mobile-open': isMobileMenuOpen }">
       <button @click="toggleMobileMenu" class="sidebar-close-btn">
@@ -22,7 +20,6 @@
       <div class="sidebar-content">
         <nav class="navigation-menu">
           <ul class="nav-list">
-            <!-- ENLACES ESTÁTICOS (Siempre visibles) -->
             <li>
               <router-link to="/" class="nav-item" active-class="active">
                 <svg viewBox="0 0 24 24" class="nav-icon">
@@ -43,7 +40,6 @@
               </router-link>
             </li>
 
-            <!-- MEJORA DE UX - ESTADO DE CARGA -->
             <li v-if="authStore.loading && authStore.isLoggedIn" class="nav-item-placeholder">
               <div class="placeholder-icon"></div>
               <div class="placeholder-text"></div>
@@ -173,7 +169,6 @@
             </div>
 
             <div v-if="authStore.loading" class="user-menu-placeholder"></div>
-            <!-- [MODIFICADO] Se agrupan los botones de login bajo un solo <template> para que el v-if funcione correctamente -->
             <template v-else-if="!authStore.isLoggedIn">
               <router-link to="/login" class="login-btn">Iniciar Sesión</router-link>
               <router-link to="/login" class="login-btn-mobile">
@@ -207,6 +202,7 @@
 
       <main class="page-content">
         <RouterView />
+        <Info />
       </main>
 
       <Footer />
@@ -229,6 +225,7 @@ import { db } from '@/firebase/config'
 
 import Footer from './components/Footer.vue'
 import BottomPlayer from './components/BottomPlayer.vue'
+import Info from './components/Info.vue'
 
 // --- Inicialización de Stores y Router ---
 const router = useRouter()
@@ -244,54 +241,52 @@ const scrollTop = () => {
 }
 provide('scrollTop', scrollTop)
 
-// [MODIFICACIÓN AÑADIDA]
-// Este watcher cierra el menú lateral móvil automáticamente al navegar a una nueva ruta.
 watch(
   () => route.path,
   () => {
     if (isMobileMenuOpen.value) {
       isMobileMenuOpen.value = false
     }
-    // También se encarga de hacer scroll hacia arriba
     scrollTop()
   },
 )
 
-// --- [LÓGICA DE NOTIFICACIONES CORREGIDA Y SIMPLIFICADA] ---
+// --- LÓGICA DE NOTIFICACIONES ---
 let unsubscribeRequests = null
 
-// Este "vigilante" ahora observa directamente el ROL del usuario.
 watch(
   () => authStore.userRole,
   (newRole) => {
     const isStaff = newRole === 'admin' || newRole === 'moderador'
 
-    // Si el usuario AHORA es staff y no estábamos escuchando...
     if (isStaff && !unsubscribeRequests) {
       console.log(`Usuario es ${newRole}. Iniciando listener de peticiones...`)
-
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
       const q = query(collection(db, 'song_requests'), where('timestamp', '>=', twentyFourHoursAgo))
 
       unsubscribeRequests = onSnapshot(q, (snapshot) => {
         const currentRequestCount = authStore.songRequests.length
-        if (snapshot.docs.length > currentRequestCount && currentRequestCount > 0) {
+
+        // [CORRECCIÓN] Se elimina la condición extra que causaba el bug.
+        // Ahora notifica correctamente al cargar por primera vez si hay peticiones nuevas.
+        if (snapshot.docs.length > currentRequestCount) {
           authStore.setHasNewSongRequest(true)
         }
+
         authStore.songRequests = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       })
-    }
-    // Si el usuario AHORA NO es staff y SÍ estábamos escuchando...
-    else if (!isStaff && unsubscribeRequests) {
+    } else if (!isStaff && unsubscribeRequests) {
       console.log('Usuario ya no es Staff. Deteniendo listener de peticiones.')
       unsubscribeRequests()
       unsubscribeRequests = null
+      // [MEJORA] Se limpia el array de peticiones para evitar inconsistencias
+      authStore.songRequests = []
     }
   },
-  { immediate: true }, // Se añade immediate para que se ejecute al cargar el componente
+  { immediate: true },
 )
 
-// --- Lógica del Componente (sin cambios) ---
+// --- Lógica del Componente ---
 const audioTag = ref(null)
 const userMenuRef = ref(null)
 const isMobileMenuOpen = ref(false)

@@ -107,7 +107,12 @@ const limitedPodcasts = computed(() => {
 }
 @media screen and (max-width: 1310px) {
   .podcast-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+}
+@media screen and (max-width: 400px) {
+  .section-title {
+    width: 95px;
   }
 }
 </style>
