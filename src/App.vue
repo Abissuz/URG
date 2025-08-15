@@ -266,20 +266,15 @@ watch(
 
       unsubscribeRequests = onSnapshot(q, (snapshot) => {
         const currentRequestCount = authStore.songRequests.length
-
-        // [CORRECCIÓN] Se elimina la condición extra que causaba el bug.
-        // Ahora notifica correctamente al cargar por primera vez si hay peticiones nuevas.
         if (snapshot.docs.length > currentRequestCount) {
           authStore.setHasNewSongRequest(true)
         }
-
         authStore.songRequests = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       })
     } else if (!isStaff && unsubscribeRequests) {
       console.log('Usuario ya no es Staff. Deteniendo listener de peticiones.')
       unsubscribeRequests()
       unsubscribeRequests = null
-      // [MEJORA] Se limpia el array de peticiones para evitar inconsistencias
       authStore.songRequests = []
     }
   },
@@ -316,6 +311,12 @@ onMounted(() => {
   playerStore.init(audioTag.value)
   podcastStore.initialize()
   document.addEventListener('click', handleClickOutside)
+
+  // [NUEVO] Lógica para auto-reproducción en la primera visita de la sesión
+  if (!sessionStorage.getItem('hasAutoPlayed')) {
+    playerStore.togglePlay()
+    sessionStorage.setItem('hasAutoPlayed', 'true')
+  }
 })
 
 onUnmounted(() => {
