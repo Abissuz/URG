@@ -213,114 +213,152 @@
   </div>
 </template>
 
+[⚠️ Suspicious Content]
 <script setup>
 // --- Importaciones ---
+
 import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
+
 import { RouterView, useRouter, useRoute } from 'vue-router'
+
 import { usePlayerStore } from './stores/player.js'
+
 import { useAuthStore } from './stores/auth.js'
+
 import { usePodcastStore } from './stores/counter.js'
+
 import { collection, query, onSnapshot, where } from 'firebase/firestore'
+
 import { db } from '@/firebase/config'
 
 import Footer from './components/Footer.vue'
+
 import BottomPlayer from './components/BottomPlayer.vue'
+
 import Info from './components/Info.vue'
 
 // --- Inicialización de Stores y Router ---
+
 const router = useRouter()
+
 const route = useRoute()
+
 const playerStore = usePlayerStore()
+
 const authStore = useAuthStore()
+
 const podcastStore = usePodcastStore()
 
 // --- Lógica de Scroll ---
+
 const mainContentRef = ref(null)
+
 const scrollTop = () => {
   mainContentRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
 }
+
 provide('scrollTop', scrollTop)
 
 watch(
   () => route.path,
+
   () => {
     if (isMobileMenuOpen.value) {
       isMobileMenuOpen.value = false
     }
+
     scrollTop()
   },
 )
 
 // --- LÓGICA DE NOTIFICACIONES ---
+
 let unsubscribeRequests = null
 
 watch(
   () => authStore.userRole,
+
   (newRole) => {
     const isStaff = newRole === 'admin' || newRole === 'moderador'
 
     if (isStaff && !unsubscribeRequests) {
       console.log(`Usuario es ${newRole}. Iniciando listener de peticiones...`)
+
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+
       const q = query(collection(db, 'song_requests'), where('timestamp', '>=', twentyFourHoursAgo))
 
       unsubscribeRequests = onSnapshot(q, (snapshot) => {
-        const currentRequestCount = authStore.songRequests.length
+        const currentRequestCount = authStore.songRequests.length // [CORRECCIÓN] Se elimina la condición extra que causaba el bug.
+        // Ahora notifica correctamente al cargar por primera vez si hay peticiones nuevas.
+
         if (snapshot.docs.length > currentRequestCount) {
           authStore.setHasNewSongRequest(true)
         }
+
         authStore.songRequests = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       })
     } else if (!isStaff && unsubscribeRequests) {
       console.log('Usuario ya no es Staff. Deteniendo listener de peticiones.')
+
       unsubscribeRequests()
-      unsubscribeRequests = null
+
+      unsubscribeRequests = null // [MEJORA] Se limpia el array de peticiones para evitar inconsistencias
+
       authStore.songRequests = []
     }
   },
+
   { immediate: true },
 )
 
 // --- Lógica del Componente ---
+
 const audioTag = ref(null)
+
 const userMenuRef = ref(null)
+
 const isMobileMenuOpen = ref(false)
+
 const showDropdown = ref(false)
 
 const toggleMobileMenu = () => {
   isMobileMenuOpen.value = !isMobileMenuOpen.value
 }
+
 const toggleDropdown = () => {
   showDropdown.value = !showDropdown.value
 }
+
 const updateVolume = (event) => {
   playerStore.setVolume(parseFloat(event.target.value))
 }
+
 const handleClickOutside = (event) => {
   if (showDropdown.value && userMenuRef.value && !userMenuRef.value.contains(event.target)) {
     showDropdown.value = false
   }
 }
+
 const cerrarSesion = async () => {
   showDropdown.value = false
+
   await authStore.logout()
+
   router.push('/')
 }
 
 onMounted(() => {
   playerStore.init(audioTag.value)
-  podcastStore.initialize()
-  document.addEventListener('click', handleClickOutside)
 
-  // [NUEVO] Lógica para auto-reproducción en la primera visita de la sesión
-  if (!sessionStorage.getItem('hasAutoPlayed')) {
-    playerStore.togglePlay()
-    sessionStorage.setItem('hasAutoPlayed', 'true')
-  }
+  podcastStore.initialize()
+
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+
   if (unsubscribeRequests) unsubscribeRequests()
 })
 </script>
