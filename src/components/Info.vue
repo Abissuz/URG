@@ -264,7 +264,7 @@ onMounted(() => {
 .slider-arrow-button:hover:not(:disabled) {
   background-color: #0d6efd;
   color: white;
-  transform: translateY(-50%) scale(1.1);
+  /* transform: translateY(-50%) scale(1.1); */
 }
 .slider-arrow-button:disabled {
   opacity: 0.2;
@@ -332,7 +332,7 @@ onMounted(() => {
 .slider-arrow-button:hover:not(:disabled) {
   background-color: #0d6efd;
   color: white;
-  transform: translate(50%, -50%);
+  /* transform: translate(50%, -50%); */
 }
 /* --- Transiciones de Vue --- */
 .fade-enter-active,
