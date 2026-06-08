@@ -2,7 +2,7 @@
 
 Plataforma profesional de transmisión y difusión de contenido multimedia desarrollada para la radio oficial de la Universidad de Margarita (UNIMAR). Este proyecto fue concebido y desarrollado como trabajo de grado para optar por el título de Ingeniero en Sistemas.
 
-🔗 **[Visitar Plataforma](AQUI_TU_LINK_DE_VERCEL)**
+🔗 **[Visitar Plataforma](https://urg-qh4v.vercel.app/)**
 
 ## 🎯 El Propósito
 El proyecto nace de la necesidad de modernizar la infraestructura digital de la estación de radio universitaria. El objetivo fue crear un ecosistema web que no solo permitiera el streaming de audio en alta calidad, sino que también mejorara la interacción con la comunidad estudiantil, el alcance global de la emisora y la accesibilidad del contenido.
