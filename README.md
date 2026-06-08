@@ -1,54 +1,18 @@
-# .
+# 📻 Plataforma Web - Radio UNIMAR Global (URG)
 
-This template should help get you started developing with Vue 3 in Vite.
+Plataforma profesional de transmisión y difusión de contenido multimedia desarrollada para la radio oficial de la Universidad de Margarita (UNIMAR). Este proyecto fue concebido y desarrollado como trabajo de grado para optar por el título de Ingeniero en Sistemas.
 
-## Recommended IDE Setup
+🔗 **[Visitar Plataforma](AQUI_TU_LINK_DE_VERCEL)**
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## 🎯 El Propósito
+El proyecto nace de la necesidad de modernizar la infraestructura digital de la estación de radio universitaria. El objetivo fue crear un ecosistema web que no solo permitiera el streaming de audio en alta calidad, sino que también mejorara la interacción con la comunidad estudiantil, el alcance global de la emisora y la accesibilidad del contenido.
 
-## Customize configuration
+## ✨ Características Principales
+* **Streaming en Tiempo Real:** Reproductor de audio integrado y optimizado para transmisiones en vivo sin interrupciones.
+* **Gestión de Contenido Multimedia:** Arquitectura escalable para manejar diferentes tipos de contenido digital de la emisora.
+* **Diseño Responsivo e Intuitivo:** Interfaz de usuario (UI) moderna, accesible y adaptable a cualquier dispositivo móvil o de escritorio.
 
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
-npm run dev
-```
-
-### Compile and Minify for Production
-
-```sh
-npm run build
-```
-
-### Run End-to-End Tests with [Playwright](https://playwright.dev)
-
-```sh
-# Install browsers for the first run
-npx playwright install
-
-# When testing on CI, must build the project first
-npm run build
-
-# Runs the end-to-end tests
-npm run test:e2e
-# Runs the tests only on Chromium
-npm run test:e2e -- --project=chromium
-# Runs the tests of a specific file
-npm run test:e2e -- tests/example.spec.ts
-# Runs the tests in debug mode
-npm run test:e2e -- --debug
-```
-
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-npm run lint
-```
+## 🛠️ Stack Tecnológico
+* **Frontend:** Vue 3, Vite, Pinia (Manejo de estado).
+* **Estilos:** Bootstrap / CSS Custom.
+* **Despliegue:** Vercel.
